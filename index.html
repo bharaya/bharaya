@@ -64,49 +64,57 @@
 
     /* ---------------------------------------------------------- list */
 
-    main { flex: 1; overflow-y: auto; padding: 10px 12px 96px; }
+    main { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 8px 96px; }
 
-    .row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
+    /* table-layout:fixed with percentage columns is what keeps the whole grid
+       inside the screen: cells clip instead of pushing the table wider. */
+    .grid {
+      width: 100%;
+      max-width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
+      border-radius: 8px;
+      overflow: hidden;
     }
-    .row.on { background: var(--pick); border-color: var(--accent); }
 
-    .no {
-      flex: 0 0 26px;
-      height: 26px;
-      border-radius: 50%;
+    .grid th, .grid td {
+      padding: 8px 3px;
+      font-size: 11px;
+      line-height: 1.25;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .grid th {
       background: var(--bg);
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .row.on .no { background: var(--accent); color: #fff; }
-
-    .body { flex: 1; min-width: 0; }
-    .line1 { display: flex; justify-content: space-between; gap: 8px; }
-    .payee { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .line2 { color: var(--muted); font-size: 13px; margin-top: 2px; }
-
-    .total {
-      display: flex;
-      justify-content: space-between;
-      padding: 12px;
-      margin-top: 4px;
-      border-top: 2px solid var(--line);
       font-weight: 700;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
-    .total .amount { font-size: 17px; }
+
+    .grid td.mid, .grid th.mid { text-align: center; }
+    .grid td.num, .grid th.num { text-align: right; padding-right: 6px; }
+    .grid td.num { font-variant-numeric: tabular-nums; }
+    .grid td.payee { font-weight: 600; padding-left: 5px; }
+
+    .grid tbody tr.on td { background: var(--pick); }
+    .grid tbody tr:last-child td { border-bottom: 0; }
+
+    .grid tfoot td {
+      font-weight: 700;
+      font-size: 12px;
+      background: var(--bg);
+      border-top: 2px solid var(--line);
+      border-bottom: 0;
+    }
 
     .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
 
@@ -472,32 +480,61 @@
         return;
       }
 
+      var table = document.createElement('table');
+      table.className = 'grid';
+
+      // Widths total 100%, so the grid can never be wider than the screen.
+      table.innerHTML =
+        '<colgroup>' +
+        '<col style="width:7%">' +    // No.
+        '<col style="width:13%">' +   // Date
+        '<col style="width:20%">' +   // Payee
+        '<col style="width:12%">' +   // S.I. No.
+        '<col style="width:26%">' +   // Amount - widest, holds the peso sign
+        '<col style="width:22%">' +   // Type - fits all but the two longest
+        '</colgroup>' +
+        '<thead><tr>' +
+        '<th class="mid">No.</th>' +
+        '<th class="mid">Date</th>' +
+        '<th>Payee</th>' +
+        '<th class="mid">S.I.</th>' +
+        '<th class="num">Amount</th>' +
+        '<th class="mid">Type</th>' +
+        '</tr></thead>';
+
+      var body = document.createElement('tbody');
+
       state.entries.forEach(function (entry) {
-        var row = document.createElement('div');
-        row.className = 'row' + (state.picked[entry.sheetRow] ? ' on' : '');
+        var tr = document.createElement('tr');
+        if (state.picked[entry.sheetRow]) tr.className = 'on';
 
-        row.innerHTML =
-          '<div class="no">' + escapeHtml(entry.no) + '</div>' +
-          '<div class="body">' +
-          '<div class="line1">' +
-          '<span class="payee">' + escapeHtml(entry.payee) + '</span>' +
-          '<span class="amount">' + money(entry.amount) + '</span>' +
-          '</div>' +
-          '<div class="line2">' + escapeHtml(entry.dateDisplay) +
-          (entry.type ? ' &middot; ' + escapeHtml(entry.type) : '') +
-          (entry.siNo ? ' &middot; S.I. ' + escapeHtml(entry.siNo) : '') +
-          '</div>' +
-          '</div>';
+        // title attributes let a clipped cell still be readable on long-press.
+        tr.innerHTML =
+          '<td class="mid">' + escapeHtml(entry.no) + '</td>' +
+          '<td class="mid">' + escapeHtml(entry.dateDisplay) + '</td>' +
+          '<td class="payee" title="' + escapeHtml(entry.payee) + '">' +
+          escapeHtml(entry.payee) + '</td>' +
+          '<td class="mid" title="' + escapeHtml(entry.siNo) + '">' +
+          escapeHtml(entry.siNo) + '</td>' +
+          '<td class="num">' + money(entry.amount) + '</td>' +
+          '<td class="mid" title="' + escapeHtml(entry.type) + '">' +
+          escapeHtml(entry.type) + '</td>';
 
-        row.onclick = function () { togglePick(entry.sheetRow); };
-        host.appendChild(row);
+        tr.onclick = function () { togglePick(entry.sheetRow); };
+        body.appendChild(tr);
       });
 
-      var total = document.createElement('div');
-      total.className = 'total';
-      total.innerHTML = '<span>Total</span><span class="amount">' + money(state.total) + '</span>';
-      host.appendChild(total);
+      table.appendChild(body);
 
+      var foot = document.createElement('tfoot');
+      foot.innerHTML =
+        '<tr><td colspan="3"></td>' +
+        '<td class="num">Total</td>' +
+        '<td class="num">' + money(state.total) + '</td>' +
+        '<td></td></tr>';
+      table.appendChild(foot);
+
+      host.appendChild(table);
       renderActions();
     }
 
