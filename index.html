@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <style>
     :root {
       --bg: #f5f5f7;
@@ -16,6 +17,15 @@
     }
 
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    /* Android Chrome inflates page text by the phone's accessibility text
+       scaling, which overrides the sizes below. This pins it to what the CSS
+       actually says. */
+    html {
+      -webkit-text-size-adjust: 100%;
+      -moz-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
 
     html, body {
       margin: 0;
@@ -111,7 +121,26 @@
     .grid td.num { font-variant-numeric: tabular-nums; }
     .grid td.payee { font-weight: 600; padding-left: 4px; }
 
-    .grid tbody tr.on td { background: var(--pick); }
+    .grid td.act { padding: 0; text-align: center; white-space: nowrap; }
+
+    .rowbtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .rowbtn:active { background: var(--line); }
+    .rowbtn.del { color: var(--danger); }
+
+    .grid tbody tr.busy td { opacity: .45; }
     .grid tbody tr:last-child td { border-bottom: 0; }
 
     .grid tfoot td {
@@ -143,21 +172,6 @@
       z-index: 15;
       cursor: pointer;
     }
-
-    .actions {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: none;
-      gap: 6px;
-      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-      background: var(--card);
-      border-top: 1px solid var(--line);
-      z-index: 16;
-    }
-    .actions.on { display: flex; }
-    .actions button { flex: 1; }
 
     button, .btn {
       padding: 10px 12px;
@@ -275,12 +289,6 @@
 
   <button class="fab" id="add" title="Add entry">+</button>
 
-  <div class="actions" id="actions">
-    <button id="editSelected">Edit</button>
-    <button class="danger" id="deleteSelected">Delete</button>
-    <button id="clearSelection">Cancel</button>
-  </div>
-
   <div class="lock" id="lock">
     <form id="lockForm">
       <h1>Cash Disbursement</h1>
@@ -322,6 +330,15 @@
   </div>
 
   <script>
+    var PENCIL = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">' +
+      '<path d="M11.7 2.1a1.6 1.6 0 0 1 2.2 2.2L6 12.2l-3 .8.8-3z" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+
+    var TRASH = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">' +
+      '<path d="M2.8 4.2h10.4M6.3 4.2V2.6h3.4v1.6M4.4 4.2l.6 9.2h6l.6-9.2" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.4" stroke-linecap="round" ' +
+      'stroke-linejoin="round"/></svg>';
+
     // ---------------------------------------------------------------------
     // Paste the web app URL from Apps Script here:
     //   Deploy -> Manage deployments -> Active deployment -> URL -> Copy
@@ -334,7 +351,6 @@
       month: '',
       entries: [],
       total: 0,
-      picked: {},        // sheetRow -> true
       editing: null,     // the entry being edited, or null when adding
       categories: []
     };
@@ -485,7 +501,6 @@
       if (!state.entries.length) {
         host.innerHTML = '<div class="empty">No entries in ' + escapeHtml(state.month) +
           ' yet.<br>Tap + to add one.</div>';
-        renderActions();
         return;
       }
 
@@ -495,12 +510,13 @@
       // Widths total 100%, so the grid can never be wider than the screen.
       table.innerHTML =
         '<colgroup>' +
-        '<col style="width:7%">' +    // No.
-        '<col style="width:13%">' +   // Date
-        '<col style="width:20%">' +   // Payee
-        '<col style="width:12%">' +   // S.I. No.
-        '<col style="width:26%">' +   // Amount - widest, holds the peso sign
-        '<col style="width:22%">' +   // Type - fits all but the two longest
+        '<col style="width:6%">' +    // No.
+        '<col style="width:12%">' +   // Date
+        '<col style="width:18%">' +   // Payee
+        '<col style="width:9%">' +    // S.I. - short reference numbers
+        '<col style="width:23%">' +   // Amount - widest, holds the peso sign
+        '<col style="width:16%">' +   // Type
+        '<col style="width:16%">' +   // edit / delete - two 24px buttons
         '</colgroup>' +
         '<thead><tr>' +
         '<th class="mid">No.</th>' +
@@ -509,13 +525,13 @@
         '<th class="mid">S.I.</th>' +
         '<th class="num">Amount</th>' +
         '<th class="mid">Type</th>' +
+        '<th></th>' +
         '</tr></thead>';
 
       var body = document.createElement('tbody');
 
       state.entries.forEach(function (entry) {
         var tr = document.createElement('tr');
-        if (state.picked[entry.sheetRow]) tr.className = 'on';
 
         // title attributes let a clipped cell still be readable on long-press.
         tr.innerHTML =
@@ -527,9 +543,15 @@
           escapeHtml(entry.siNo) + '</td>' +
           '<td class="num">' + money(entry.amount) + '</td>' +
           '<td class="mid" title="' + escapeHtml(entry.type) + '">' +
-          escapeHtml(entry.type) + '</td>';
+          escapeHtml(entry.type) + '</td>' +
+          '<td class="act">' +
+          '<button class="rowbtn edit" title="Edit">' + PENCIL + '</button>' +
+          '<button class="rowbtn del" title="Delete">' + TRASH + '</button>' +
+          '</td>';
 
-        tr.onclick = function () { togglePick(entry.sheetRow); };
+        var cell = tr.lastChild;
+        cell.firstChild.onclick = function () { editEntry(entry); };
+        cell.lastChild.onclick = function () { deleteEntry(entry, tr); };
         body.appendChild(tr);
       });
 
@@ -540,36 +562,10 @@
         '<tr><td colspan="3"></td>' +
         '<td class="num">Total</td>' +
         '<td class="num">' + money(state.total) + '</td>' +
-        '<td></td></tr>';
+        '<td></td><td></td></tr>';
       table.appendChild(foot);
 
       host.appendChild(table);
-      renderActions();
-    }
-
-    function renderActions() {
-      var picked = pickedRows();
-      document.getElementById('actions').classList.toggle('on', picked.length > 0);
-      document.getElementById('editSelected').disabled = picked.length !== 1;
-      document.getElementById('deleteSelected').textContent =
-        picked.length > 1 ? 'Delete (' + picked.length + ')' : 'Delete';
-    }
-
-    function pickedRows() {
-      return Object.keys(state.picked)
-        .filter(function (row) { return state.picked[row]; })
-        .map(Number);
-    }
-
-    function togglePick(sheetRow) {
-      if (state.picked[sheetRow]) delete state.picked[sheetRow];
-      else state.picked[sheetRow] = true;
-      renderList();
-    }
-
-    function clearPicks() {
-      state.picked = {};
-      renderList();
     }
 
     function escapeHtml(text) {
@@ -584,7 +580,6 @@
       state.month = ledger.sheetName;
       state.entries = ledger.entries;
       state.total = ledger.total;
-      state.picked = {};
       renderMonths();
       renderList();
     }
@@ -593,7 +588,6 @@
 
     function openMonth(name) {
       state.month = name;
-      state.picked = {};
       renderMonths();
       call('getEntries', [name]).then(applyLedger).catch(failed);
     }
@@ -651,31 +645,23 @@
       }).catch(failed);
     }
 
-    function deletePicked() {
-      var rows = pickedRows();
-      if (!rows.length) return;
-
-      var message = rows.length === 1
-        ? 'Delete this entry?'
-        : 'Delete these ' + rows.length + ' entries?';
-
-      if (!confirm(message + '\n\nThe entries below them move up and are renumbered.')) return;
-
-      call('deleteEntries', [state.month, rows]).then(function (result) {
-        applyLedger(result);
-        say(rows.length === 1 ? 'Deleted.' : 'Deleted ' + rows.length + ' entries.');
-      }).catch(failed);
+    function editEntry(entry) {
+      entry.sheetName = state.month;
+      openForm(entry);
     }
 
-    function editPicked() {
-      var rows = pickedRows();
-      if (rows.length !== 1) return;
+    function deleteEntry(entry, tr) {
+      if (!confirm('Delete No. ' + entry.no + ' - ' + entry.payee + ' - ' +
+        money(entry.amount) + '?\n\nThe entries below it move up and are renumbered.')) return;
 
-      var entry = state.entries.filter(function (e) { return e.sheetRow === rows[0]; })[0];
-      if (entry) {
-        entry.sheetName = state.month;
-        openForm(entry);
-      }
+      tr.className = 'busy';
+      call('deleteEntries', [state.month, [entry.sheetRow]]).then(function (result) {
+        applyLedger(result);
+        say('Deleted.');
+      }).catch(function (error) {
+        tr.className = '';
+        failed(error);
+      });
     }
 
     // ------------------------------------------------------- wiring
@@ -683,10 +669,6 @@
     document.getElementById('add').onclick = function () { openForm(null); };
     document.getElementById('formCancel').onclick = closeForm;
     document.getElementById('form').onsubmit = submitForm;
-    document.getElementById('deleteSelected').onclick = deletePicked;
-    document.getElementById('editSelected').onclick = editPicked;
-    document.getElementById('clearSelection').onclick = clearPicks;
-
     document.getElementById('scrim').onclick = function (event) {
       if (event.target.id === 'scrim') closeForm();
     };
@@ -713,6 +695,35 @@
       }
       box.setSelectionRange(index, index);
     });
+
+    /**
+     * position:fixed anchors to the layout viewport, which pinch-zooming moves
+     * out from under the screen. visualViewport is what is actually visible, so
+     * the button is placed against that and scaled back to a constant size.
+     */
+    function pinAddButton() {
+      var vv = window.visualViewport;
+      if (!vv) return;
+
+      var fab = document.getElementById('add');
+      var scale = vv.scale || 1;
+      var size = 50 / scale;
+      var margin = 16 / scale;
+
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+      fab.style.left = (vv.offsetLeft + vv.width - size - margin) + 'px';
+      fab.style.top = (vv.offsetTop + vv.height - size - margin) + 'px';
+      fab.style.transformOrigin = 'top left';
+      fab.style.transform = 'scale(' + (1 / scale) + ')';
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', pinAddButton);
+      window.visualViewport.addEventListener('scroll', pinAddButton);
+      window.addEventListener('scroll', pinAddButton);
+      pinAddButton();
+    }
 
     // ------------------------------------------------------- lock screen
 
