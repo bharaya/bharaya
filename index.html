@@ -798,8 +798,8 @@
 
       book.entries.forEach(function (entry) {
         var tr = document.createElement('tr');
-        var state = bookingState(entry);
-        if (state) tr.className = state;
+        var marker = bookingState(entry);
+        if (marker) tr.className = marker;
         if (entry.remarks) tr.title = entry.remarks;
         tr.innerHTML =
           '<td class="mid">' + escapeHtml(entry.no) + '</td>' +
@@ -954,9 +954,11 @@
       splitModes(entry ? entry.dpMode : '', 'bDpMode', 'bDpMode2');
       splitModes(entry ? entry.fpMode : '', 'bFpMode', 'bFpMode2');
 
-      var state = entry ? bookingState(entry) : '';
+      // Named 'marker', not 'state': a local called state would shadow the
+      // page's state object for this whole function.
+      var marker = entry ? bookingState(entry) : '';
       document.getElementById('bStatus').value =
-        state === 'cancelled' ? 'CANCELLED' : state === 'rebooked' ? 'REBOOKED' : '';
+        marker === 'cancelled' ? 'CANCELLED' : marker === 'rebooked' ? 'REBOOKED' : '';
 
       document.getElementById('bookScrim').classList.add('on');
     }
