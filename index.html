@@ -306,8 +306,29 @@
     .status.on { opacity: 1; }
     .status.bad { background: var(--danger); }
 
-    .busy { color: var(--muted); font-size: 13px; padding: 4px 0 8px; display: none; }
-    .busy.on { display: block; }
+    /* Covers the screen while a write is in flight. Besides showing that
+       something is happening, it swallows the second tap people give a button
+       when they think they missed it. */
+    .working {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, .55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .working.on { display: flex; }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(0, 0, 0, .15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 
@@ -322,9 +343,10 @@
   </header>
 
   <main>
-    <div class="busy" id="busy">Working...</div>
     <div id="list"></div>
   </main>
+
+  <div class="working" id="working"><div class="spinner"></div></div>
 
   <button class="fab" id="add" title="Add entry">+</button>
 
@@ -332,12 +354,11 @@
     <form class="sheet" id="bookForm">
       <h2 id="bookTitle">New booking</h2>
 
-      <div class="pair">
-        <label>AR<input type="text" id="bAr" readonly></label>
-        <label>Pax<input type="number" id="bPax" inputmode="numeric" min="0"></label>
-      </div>
+      <label class="hide" id="bArWrap">AR<input type="text" id="bAr" readonly></label>
 
       <label>Name<input type="text" id="bName" required autocomplete="off"></label>
+
+      <label>Pax<input type="number" id="bPax" inputmode="numeric" min="0"></label>
 
       <label>Stay<select id="bStay"></select></label>
       <label class="hide" id="bStayOtherWrap">Stay (type it)
@@ -531,8 +552,8 @@
     }
 
     /** Every server call carries the PIN; the server rejects a bad one. */
-    function call(name, args) {
-      busy(true);
+    function call(name, args, quiet) {
+      if (!quiet) busy(true);
 
       // Content-Type text/plain keeps this a "simple" cross-origin request, so
       // the browser skips the CORS preflight that Apps Script cannot answer.
@@ -543,7 +564,7 @@
       })
         .then(function (response) { return response.json(); })
         .then(function (data) {
-          busy(false);
+          if (!quiet) busy(false);
           if (data.ok) return data.result;
 
           // A rejected PIN sends the user back to the lock screen rather than
@@ -555,13 +576,13 @@
           throw new Error(data.error || 'The request failed.');
         })
         .catch(function (error) {
-          busy(false);
+          if (!quiet) busy(false);
           throw error;
         });
     }
 
     function busy(on) {
-      document.getElementById('busy').classList.toggle('on', on);
+      document.getElementById('working').classList.toggle('on', on);
     }
 
     var statusTimer = null;
@@ -629,11 +650,11 @@
         '<colgroup>' +
         '<col style="width:6%">' +    // No.
         '<col style="width:12%">' +   // Date
-        '<col style="width:18%">' +   // Payee
-        '<col style="width:9%">' +    // S.I. - short reference numbers
-        '<col style="width:23%">' +   // Amount - widest, holds the peso sign
-        '<col style="width:16%">' +   // Type
-        '<col style="width:16%">' +   // edit / delete - two 24px buttons
+        '<col style="width:16%">' +   // Payee - ellipsised, full text on hold
+        '<col style="width:11%">' +   // S.I.
+        '<col style="width:22%">' +   // Amount - widest, holds the peso sign
+        '<col style="width:18%">' +   // Type
+        '<col style="width:15%">' +   // edit / delete - two 24px buttons
         '</colgroup>' +
         '<thead><tr>' +
         '<th class="mid">No.</th>' +
@@ -706,7 +727,7 @@
       var index = MONTH_SHORT.indexOf(parts[0]);
       if (index < 0) return;
 
-      call('bookingGross', [Number(parts[1]), index]).then(function (gross) {
+      call('bookingGross', [Number(parts[1]), index], true).then(function (gross) {
         state.gross = gross;
         if (view === 'disb') renderList();
       }).catch(function () { /* a missing figure must not block the list */ });
@@ -776,18 +797,18 @@
       // Only six of the fourteen fields fit a phone; the pencil opens the rest.
       table.innerHTML =
         '<colgroup>' +
-        '<col style="width:6%">' +    // No.
-        '<col style="width:17%">' +   // Name
-        '<col style="width:23%">' +   // Check in, with its time
+        '<col style="width:7%">' +    // AR
+        '<col style="width:18%">' +   // Name
+        '<col style="width:22%">' +   // Check in, with its time
         '<col style="width:6%">' +    // Pax
-        '<col style="width:18%">' +   // Total
-        '<col style="width:14%">' +   // Balance
-        '<col style="width:16%">' +   // edit / delete
+        '<col style="width:17%">' +   // Total
+        '<col style="width:15%">' +   // Balance
+        '<col style="width:15%">' +   // edit / delete
         '</colgroup>' +
         '<thead><tr>' +
-        '<th class="mid">No.</th>' +
+        '<th class="mid">AR</th>' +
         '<th>Name</th>' +
-        '<th class="mid">In</th>' +
+        '<th class="mid">Check in</th>' +
         '<th class="mid">Pax</th>' +
         '<th class="num">Total</th>' +
         '<th class="num">Balance</th>' +
@@ -802,7 +823,8 @@
         if (marker) tr.className = marker;
         if (entry.remarks) tr.title = entry.remarks;
         tr.innerHTML =
-          '<td class="mid">' + escapeHtml(entry.no) + '</td>' +
+          '<td class="mid" title="No. ' + escapeHtml(entry.no) + '">' +
+          escapeHtml(entry.ar) + '</td>' +
           '<td class="payee" title="' + escapeHtml(entry.name) + '">' +
           escapeHtml(entry.name) + '</td>' +
           '<td class="mid">' + escapeHtml(withTime(entry.inDateDisplay, entry.inTime)) + '</td>' +
@@ -936,8 +958,9 @@
       document.getElementById('bookTitle').textContent = entry ? 'Edit booking' : 'New booking';
       document.getElementById('bookSave').textContent = entry ? 'Save' : 'Add';
 
-      // Assigned on save, continuing from the highest in the ledger.
-      document.getElementById('bAr').value = entry ? entry.ar : '(auto)';
+      // Nothing to show for a new booking: the AR is assigned on save.
+      document.getElementById('bArWrap').classList.toggle('hide', !entry);
+      document.getElementById('bAr').value = entry ? entry.ar : '';
       document.getElementById('bName').value = entry ? entry.name : '';
       document.getElementById('bPax').value = entry ? (entry.pax || '') : '';
       document.getElementById('bInDate').value = entry ? entry.inDateIso : state.today;
