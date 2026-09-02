@@ -56,6 +56,35 @@
 
     .title { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
 
+    .views { display: flex; gap: 4px; margin-bottom: 6px; }
+    .view {
+      flex: 1;
+      padding: 6px 0;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .view.on { background: var(--text); border-color: var(--text); color: #fff; }
+
+    textarea {
+      width: 100%;
+      margin-top: 4px;
+      padding: 10px;
+      font: inherit;
+      font-size: 16px;
+      min-height: 66px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      resize: vertical;
+    }
+    .pair { display: flex; gap: 8px; }
+    .pair > label { flex: 1; }
+    .hide { display: none; }
+
     .months {
       display: flex;
       gap: 5px;
@@ -141,6 +170,11 @@
     .rowbtn.del { color: var(--danger); }
 
     .grid tbody tr.busy td { opacity: .45; }
+
+    /* Cancelled, rebooked, and settled in full. */
+    .grid tbody tr.cancelled td { background: #ffe2e2; }
+    .grid tbody tr.rebooked td { background: #fff5c8; }
+    .grid tbody tr.paid td { background: #d9eaff; }
     .grid tbody tr:last-child td { border-bottom: 0; }
 
     .grid tfoot td {
@@ -245,6 +279,7 @@
     .lock.off { display: none; }
 
     .lock form { width: 100%; max-width: 300px; text-align: center; }
+    .lock .mark { width: 140px; height: 140px; object-fit: contain; margin-bottom: 10px; }
     .lock h1 { font-size: 20px; margin: 0 0 4px; }
     .lock p { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
     .lock input { text-align: center; letter-spacing: 4px; font-size: 20px; margin-bottom: 12px; }
@@ -278,7 +313,11 @@
 
 <body>
   <header>
-    <div class="title">Cash Disbursement</div>
+    <div class="title" id="title">Balai Haraya</div>
+    <div class="views">
+      <button class="view on" id="viewDisb">Disbursement</button>
+      <button class="view" id="viewBook">Bookings</button>
+    </div>
     <div class="months" id="months"></div>
   </header>
 
@@ -289,9 +328,71 @@
 
   <button class="fab" id="add" title="Add entry">+</button>
 
+  <div class="scrim" id="bookScrim">
+    <form class="sheet" id="bookForm">
+      <h2 id="bookTitle">New booking</h2>
+
+      <div class="pair">
+        <label>AR<input type="text" id="bAr" readonly></label>
+        <label>Pax<input type="number" id="bPax" inputmode="numeric" min="0"></label>
+      </div>
+
+      <label>Name<input type="text" id="bName" required autocomplete="off"></label>
+
+      <label>Stay<select id="bStay"></select></label>
+      <label class="hide" id="bStayOtherWrap">Stay (type it)
+        <input type="text" id="bStayOther" autocomplete="off"></label>
+
+      <div class="pair">
+        <label>Check in<input type="date" id="bInDate" required></label>
+        <label>Time<select id="bInTime"></select></label>
+      </div>
+      <label class="hide" id="bInTimeOtherWrap">Check-in time (type it)
+        <input type="text" id="bInTimeOther" placeholder="e.g. 10:30 AM"></label>
+
+      <div class="pair">
+        <label>Check out<input type="date" id="bOutDate"></label>
+        <label>Time<select id="bOutTime"></select></label>
+      </div>
+      <label class="hide" id="bOutTimeOtherWrap">Check-out time (type it)
+        <input type="text" id="bOutTimeOther" placeholder="e.g. 11:00 AM"></label>
+
+      <label>Total Cost<input type="text" id="bTotal" inputmode="decimal"></label>
+
+      <div class="pair">
+        <label>DP Date<input type="date" id="bDpDate"></label>
+        <label>DP<input type="text" id="bDp" inputmode="decimal"></label>
+      </div>
+      <div class="pair">
+        <label>Mode of Payment<select id="bDpMode"></select></label>
+        <label>and<select id="bDpMode2"></select></label>
+      </div>
+
+      <label>Full Payment<input type="text" id="bFp" inputmode="decimal"></label>
+      <div class="pair">
+        <label>Mode of Payment<select id="bFpMode"></select></label>
+        <label>and<select id="bFpMode2"></select></label>
+      </div>
+
+      <label>Status<select id="bStatus">
+        <option value="">Normal</option>
+        <option value="CANCELLED">Cancelled</option>
+        <option value="REBOOKED">Rebooked</option>
+      </select></label>
+
+      <label>Remarks<textarea id="bRemarks"></textarea></label>
+
+      <div class="buttons">
+        <button type="button" id="bookCancel">Cancel</button>
+        <button type="submit" class="primary" id="bookSave">Add</button>
+      </div>
+    </form>
+  </div>
+
   <div class="lock" id="lock">
     <form id="lockForm">
-      <h1>Cash Disbursement</h1>
+      <img class="mark" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOAAAADgCAMAAAAt85rTAAAAflBMVEVbaVOYoos3SDOJlXvj49d4hW5CUTwpOyUuNi1eYF3GyLg2RzIgXx82RjG8wbclNiFeYx8mOCFAUDtMWkf///+eoJ4A/wBCUDv//wBGVUH//3+amm6qqv+Bi3329OYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA9bwXaAAAAIHRSTlP+/vv+/v77/RIF/qAUX/5YEJaopwEIAVUBeAIJA5j+ADOV498AACyHSURBVHja1X2JYuJYku3dJYQQ2JlV1T3znvj/v5w4J+JqAbHYZdKZdJfTBox1FHFjX9z5JY/d7nxu292pf/C+vpUv7X4f5P/lcG6//krc139k2y6v8y5EuQ3n495lPKI78OffH+CZVx3C/kiou3vw+kNw0evDtX8GwP5wOAhRYnbyKKG/yXeCZw94Mcp/8q87/hEs2gfngjOiyIWHEw/kFr6e1AM277L3ef8HULA974sABFk8//MuHIQZ2/6aPw+4DyCevMnhm/CKw/LlFDz0La88O4UonLon57WnNT5hY3JnzsT3xwAkSIATZEYggXhszytxI5Tm6ZM3uIg3yjfCon/CGdzt2l3rVHA4BUCwZT9JVMidI0HxCJKjPYXMH6ImhP30EFLa8Hz5mDNYdWf0a0ndDNESQsYbhEPbP4VFd6QPzxfkpGoCHssjJOpB1EHhHch2E3ADvHsJh77mDO54wqgmhD4qQkAtgOjPvWv3WZky4xaQfsKqL9HzL7Jkdv8TYH9FUC64ElXYgF6H88+z98GIliNVxQs59EUAKUQybRkXAokUnR5L4U8/ZqMgBYxKG5Ghpz8H4JlSRC8dEKHxTN6EsxvT6JSC+kqEznyNkngZQBOkehAzFYFTleje0piSzwqwgMb1eP5JAMmjOIIKEQgBMAnEQIBGQZdNGL1IC76ORc9tsEs3ixRs6NzgckljN2aY2FGNct6GGE7n858EcCen0FHMlAKLhjq/eJ/GwSc5g+BLF3ycCLh/DQFfR0Foe3lQhLgC1hSA2YuAkS/OySnMIfvJrRK/sf+zAAqTlgwZmqnFnaDLzoeUEmzTcfQgbVYV+EICvvAMUsy4bJJG1L7LTkg3dsKbSQA2zh4ZDLzr29OfBlDsMQoWgvBQEXEcnYckHUHBqighgpQ9xRH5YwCe2nOIZFHSSIWKAEtyHjMAylcjr6jJUN73Bw3G7XZ/hqkGrxcanigoZsRmabLoQCATAgYcyzIZc4xQvR++HqN7TdD3fJKAGVHR24XCKHDcg3BoI2yaRV+MqegBVSIqSLcnyK87kF/v0TNyWAIPHl15p65TDMAkPyBGASkjP/hZT/CN+ng/fCEZ3dfDO73LpRYGKkJRW0wjGJ5kc6IG/Yjvvbq66u+TxuaAWJyq/e0AIiHxjyQZQAufjSSGUH4WE1SQyQmEqU05o4accGjWWxBinsh43IL4cbq6T52wW/B2BzlLOHmCqxqaE0ZVDnl0+CrmWiqVOdXihr6IyfsK0R0vA/+iesTn2D3KeHwSID5Y0O1v2BytwWOwUCRjidXQ9oox4uCNJSSeTIjTqugVHGOMQSgrhJaQP2XOYQ3x51lQA93P11Cwl/v25ty21gO8SbAIwOzNWeIXiMkGbCkGjJeLF3zyhkxv3/g0quuIuzCKuYMEgBzlw8+ZXGLeDt696/HcfTXAfn+keem7qxxJLzId4WwYmwrPYoXTg09CvydfGkWVM46jeE9TIgPnTxhbzPHUkVFBxRCOu/r3ducC4SQS6Ef88SwVnwR4+vs95eObS4PIwIu7B9EiGQmIETFZoO7gDjEUYbJDQDB9JDa2cGZALJHfOdhrjjY35SdtgqRWgIasqCJ7/YPt7gjpi5fFJTn+9cUULGMCj4kt4te+906ISzEhLi30gqlwqG+V+gQEJRHlxcGbTh+IQtNLfMJ8ezeMUCB5QX5J/Z6Zo/oxUr0kP3bOiXnefxXA3a53UF+QghDvyzxDez6UrKIkwkUHaUzDWbQiqDljUTTnGuGyBAgw2xjV5n3xlqqAywgA0QLiQPjOP3ikl0VtI34J0PW7rwCIT2lFtsunDjlTUBwmhC0zLeBERHEd4Y2jqyocYVHGC0ESoB/wMfB58UiZwUQgL4VhqKifQYWiCB2jcRIVPu4Lfr+ACYRNQnM8tl9CQQqt4xE+Oews/m0m/SzLpzkkT/WQCU8oU8V+CZHqnJcr8kNkS4ImoLBE4FdJDfMtOIWoclQCNxYcd/qX97Dw8JtjDpowFaBvjxX/ExTc/ZALGXyTfEOPBwwomZTdeUd80W48b7cKeTUy5YmiqQnNMQnZxMoWNQcS4yKZ2o2aOoNzXHiv6meQz6OaOap2DKALQ4i4DAioh5UZDwH2/6X+SnLRQ5NSUAbEuTkxC62pIZMKS4DRK1WVWxHy9cNobxBREkKsyPibjL0RsrKvIIzVFlJjx1HCipMVGkoDCV7JbW4fOMkPAO76k0Bw8ONgXjhGNS1SC/ENBs08RLxE1y0oqMowT9mz7CjkR5XzydKelYTZW75epQwf0Zn4cvSdiV0UZxBriOdZGPffnUGk1k9HHB0IUQ8VLZc2OBUAEkg5B+WyWBhAq3c/OTuVKl0io4aivZNT0VI6aHO1VqvFnWuEdAGQBo0oxJA1zw0BlGkoZGhLkcVh38Kc6z8HEL92knIXsqin513EWIxmqMjPb86S7MFOml0cZaYyn4vKqxSg6hFClfHyceqMDycvQhytGSD+rjon0cO4FR4FQNGV1Fh6f+6T0d03z9o3ubiGciHBcixyIJ2VtQSXneWNilsqMZ6erAqA1lvh0RPGJSssLn/2HOSOJH0YG9eDKMJUzXfeU4kJgBn4aRJ/TAhhjf7tzjl0d5y7/wqpGug/4XmKdUHYOCpxYZygsoO8CDs0LigIOWt6npqM2jHBdBlMU04IYHf6tHxqXAEEvwgXh4J8sIMbEhSfnBSNIUsyTizTW9LG3dF/DXhLKIcPGegKSEglNyCNHHXI7Viyarts8VtfFaEynVredvVJT2i6BeXyG/ulTGYokDNi30E68RDwb6k0Fc3x9teHKShHNwvJYNsK47uRl0lLmGqQBli2mh9wKBK6VYpCk0Cww9rmuRu3r/6Jh6fjQYsolgQjAWFxsdhh1sAgYgA552N7PHyAgi1qBXDcoANpwJfUdfpthowW8UBPTj0fOqcLRS/yI42fB7USMU41Ks3xMfIGp+wsxkq7UZTJiLSHD//7EQoeYBC7BmcmSgRsUNdGPlLi05k+AqSbet7BlNlSwuN4pX+FTqPEQd0QeGBppKkPM31UnU+A4kmTBnmzjGETYCvlguBOfgGPwsOTi1czA3+oQDSKhYwULTBGCyuNX/hIyp9BnBR1JClg1U73lYAj/7zymH/bsNvcdsUgxDWSlmqmyUdXI4TR2zQ4tTq0UtDSYNDfX/vwWX0sp+YPnCr9Xo8NfRfaHhqnc0UqjNqnWBSuc0KQPehdEmYbsp0KTayrpaLK3FLtLo1fTMFIGU0E9PKhklUmA6Aa/gjwADbo64/PUVAkDASWkKqxSJGJGo0zuFr6Qh1A5TCIDPfjVz+Smke8yQn6CiDSxKKZujVQikIFCdu9nY+HhwAl+Bh+vlWrOGjAfZxZNFPVaxWrObZufMHDAjuSsnF6jyEBSuNMz1MWpNKomvVMPYo+dOVC0LitEhf3duZd84iBqe4zR0ecTRr8CDAxVuYv7eMvFDEMDMfCWCmiOMIpnZq1kKAeoQ+z7nHLG3JtCrs1QreRmZXL//8qXQY5AU0ZwA71IDBaGSm65exZ+Pqrj9/kkjBhAXkOMGqDZo37CGc2ZhoJFw0NGVlMkOZC4burRoZdgMHg3fR3oMxV2og1P+eA8HzOzgJqX8+iiI+UwmrThrcVd1EecgGDGjBBmYhq0VGhaSi1f3AGHRmApgIeQ2mKKHSofGHX6oLC+W3oz2lM1301BZ3FyT0DH3rUUMEQzKxxIgH9AG3mobXIYSJyWO+3uwVQ2De8v1GbipKgZBFDUPy4zjPQk8Vs0EpPDXfVWldh2uarj6GfGiqcBSjw7OCg/iVFA3fCayJD/nZSjiNZQ1ghvAB4EtuogyuKepZQoyPCE059Xme+LYJMNeyg5dlfL0WjOcD40/xJDoTQydMwo9+sf1/sycSrhkwV22pdcrMCeBINkSlNik+8d3QZwIAIu+MGVQaB3zBniPz4EkUB/omdGewi8XzA6UtJA4kumJCBsAusbR/g56wDbesz+L+SY1Bx2bgOgaaYzV5wTIxQwYfczV457kMaX4Pv6idanxk5OLFo4lhNOMifWY6jrG8BcQHw791BhK1XxhRhFeiCCXOg6iq6RhObmyLzRRDHC18yM7IjAgisJKKlQFlCHQ4wdFK9EvfWblFQFGBmKsGZFOORU2YXYxT+lojlcukVpVeB29KMifYLPG5QIuBQorwvQO4PZCcICCHqXtIpWla0YlGeMLVt8SnyRjHyBBzi0CwR1Fiuc+O3PLxTHxBZfkQwm5wbCB0aaU5DwRAMAn+/22BRETGNE8slUHXybAk0WAzZ69egEcDo0jfAA4cyrJOYQQUQ+aaTrzTSxKPRiJzQ6KhdjIfDBQXb83/5qxC/ScoEmGxF5oeutPV5UP/57yBg0j/sZ6ktRUUZeJOm1SQfwxO1P+zVgUM5gVvGeY+hSsQBwjQPCFgMEu4YGB8rTbVd4ph+PQGFjXD+NEBhT8K2aizjhWuX7JrobyvTZEPikoKSoZ7DKG6K8/mmZLwAs6hqwu/gUUoDUV8j01R2LHF2zPhmMiNV40OcZdeuWLTfC3N6GtDZoo9qcTN1Xd15oSNrkb+BQxGr9Go+jTWPBcHXqIpkXFjUW9bEK5pOYLIxHS3d0r104wi+QaP0ag4xBCmalV87dSbUgP8eEorm017DzGyekrA4y+igQDNp2gfXWFtmZwpKnYsZtMyN4fcHZmzVDYNDxug7Y9Vp/CZN4afYttrfImIGRDHkUkGUmhXKU9OzA7K2Zb90Kx3fXp0kjVDIJxWvfOroZ7KKzn8XujmW4Y1nhU6WS3PQ995bMMzzINGecagiqI/98ViZz9fAgKhTPcypRiLHMX0nOubdJpkQgkY0qLlF0kQzQ6DdJkVf0ixEGppn3pJYtNsR1lY542GjpY8Zya8RqLl+J7EKSz8icFhwkGoand3RArA9H6ew7qjZTXaK69sYm28sRXRTtKTFY+u1jbfe+JCNz9zU+dmEIUMnps140fM1+vAmHrzTIEXy9aYgs0IzyMKEIYSqFHy+RZ0hWJQGsXy/CnCnUspCqySLN1zdqwS/pyyeZvin1Du96Q1DzSdoMSRkYDYXv0yfJhRKOFhob4Mlqox7IWOk5seqxtJQY3O3mY/5e9d1nacx263+SmgWlk/iLdv6qCGwInFBATzy7dyoGFSMcDP4C09IwDbBOtoE6iD22D9Om3AgZ6OVgZitx3vdaIbwYVwJrFy52s00rzzgVhYXX7/+sEQ84/o3Q7rnXCSNFSLZWyLZSOJHGiqjOSMInTbhDBZ0ZEROzDlIXXmXpPtxX0bnV7TfOhSEkZTVyuK6lGLdBcCtNE13Sdp4g9T1fqSxinYfmJ5oLm+H3/eq6OdbPvuU00+M7jyO8k13nzGSvKLLzHlJOS9tGdNh41bcBqjF7ZqDgRYTG7swnTnDK0eoCYlA7atoTUxppOAV16CJCc01pgcAZ1ALpjSCLSUFcJStD2MFzOpWNCW4OwyqCVD48gMdXz8uHDkRmxK56M9uRy9ietIzAgp0iAxGTex040MSLgHmJWshWLVCdBOg9cAsKXgHoHmlkvdkcSZ0IQJI6s/SKwg7tUV3+ymGDUXfNChZccwdeVUWrEV5QEIAjBtiJYkYDCupM9w4WSLuSe30FEAJig30eFk9ClHBk2hJPZa7SAQYAE8Inlk8vtGSOAhdobokB4MFfzM8/PExwHR1BrvGL8+nyZJrgICTuiWP3gcoySTGmyEvBjj2NbJteRueZ7TNihwdLOA2WdFCatYWqBWT1cN/EGkSUKrtVlKEl71m2RsAKSzSivZ3AaLW1BwLBkY1d+/NNZCoqfwu+59cv89pHf+TxBuqNzSpUiunRn/fyc1B0xOJKnFykVkbsVYMNwCKp2rM/ZyQsQ9zWjaABC/+ZjZbVBActJhd1MQciTEh4BkH19wHw9nyCUN3n4QVIKI5LNKpRzBemig3AHYsyVnciocAE+swpL5SM5TJEqV23qujCynav1mtvNVyWmDVqhtZ2pAZaXoIUHy0ZolPL7tbKYpNgIk1pARYb8VTFJQzGKYSFnJLEVsRH5+tvYO26A5WMg10qeXErchTkozFTE9EKBRg5zSBldPlZc/S8QYFcQRFdKxV6AOAOIMl29ABM0+E+fbQewuAwOfVBEa9AlKrRcuwmVxCEI6Fvo8BJkaFfJkRkK/dypi5IUWVwcJaQN0HmLSKxCtCYVXJj0YGm45F2lg0SwiAf+29lptQjkq8nvisSlWz8A8joZSUmpkSCMUg4LJZZ7rg0W2AXdNVfHYrnqBgBxlotbgMukuyFkMlevTwt1Po/m/xCsM+mGuJClubQeS1UFLrWh+y6HRpiTpDtYvoNtcYwDtCBrw8oixncSseA4Ssj27R4MWIH5vypctilZtod2+ouKMB909YdHXUeUTPAawtD2aNyZkKOPLZLc3obQrK3W+CGmvzxzyQosHqrEJweZqaYWMVrtJnDUqIxMk/otPDBmwU+pE2u+cJFl0dszCQlFrqwVph4/JtKYpega6ewuEJgLiNypmsw180OyFu+Fe7BihMi3rqN+gMm9HDBj5rh5CKcP+EuzQp82p9Jj2LaWWeXgJMVi0dTSzWW/EYoHWQKpsWN01dWA2nqQDPeQj7aQ6MlSNPjSnuKX9wuuwKkMHGS/Pt0tiGryL6IY8XqJ5g0WmUCa3KXDuGUWQ9VVpMkW0kmyQlijEwrET2WsGg7w/dUwCXDgN+JUI0zpEZ5WC/BpjoOrmyVJPhOSlqjQtoLokmTSuT5mk8jZsr8HboVD3WKWDWSBSvK3kf+YOqrzUYsHEDVv6gmQJp4efWW/EIIHnUAGY9iXljPo2r2d3Tgc1WNvHM24RJbRZwzxQmVZeI5jZcC7nsuHB9rHBxBZAeqtr3a436RMjC+tQNYJX51pdPSXraKuUq9dC5aWCRDLZ5SMA56GTU1IkqM+XNHk0TVPPRNH3pmu4q6qZuVknjXTlaKagpszD19U1yxi3bIDktTGmWK38zV/MwWJ9ozfL7jv40ujjLwrdL1hdE+MXOdLKiDj/HES0op/HL+iv3T2GloLAbal1MzmRThheVTq2O6SsxV1tGC5nS/YKRpOaK0zw3SwTGqV54fkPTSJUZv3Hs7w0N35IRO/ATqRv+D1M9wvKFbUGaawMYAbLQzNqBnVY8uctJU14H0k7kY4mUVW3dDFt0dTIM5a/lp/hcPWy1pzp5+ybbaECxkPFv9lMhur7uU/3mbt4+TBRk1lpnQbJXz3h0C+AkfqNTz966hqWI8smawl+XX/PBWmOmJmer0RUe/XnFor3O/awNqpKAEgJKc8HAvnFaed2d9NJFhmiVGUpjTRWli8dlWildvHF8FLQIJvgnO01/NovUXY8kNI6OKJ0NTvt2qqmXv6nI6a5P6LSDe0aoeKcU9gVAGyMZ0YZ8Ciwc9qwyzO5L6s/TC8ounZshIsqyGCZ4rQdtaoZYc/2pLc7kFMQvJIiR8CI7eZWr3E563kiPpos3XbDqMyWJOm1hQqjtHBsAdagkHXkxbHAk6wDQaaSGBRFt3NSiW8Qtqme8c8tsm7ehVAWV3uv8KOv4Z1OAKmTKh/Ijrey2u29nuBWfarHFBkAMQxPv/qijaqAWtYXA1w6JqQ9Z1VnVG1b8dzNFxtcFmlTkrvKj+k6zVvza86f1R5WT9MPTXYCxWHTGm6K7BZClejbfxyhow7LNBKp9yCs76iJXOYSLJOdsa3fr/KhfpsjD4tcSSOpnS949oGA11JQMNjt/4wyedFFEP02YnDTpZaP1Kim2js4bxTa8qXSZH+U742TELu9L17gtb/o2wMNhMWT/utJpOVhrMUKzcXWUSLBG6C2Aq2RszWWmVVQxuPGKHml9K7pFElvTGrMlf7dvwQByk8Dk17u3bYAXM0JZpa0eFGefuOH6ks0DvMhlzoyI6FNZBMuWB20VFF7xvXPLEM/9CCkBosxXSkU1fiFXy7HITwCc/GY3DwsZF5d87XwnDY/lrWTt7BqatewW1PELUnXN7F+4+45TBajcJ4N0WqlKk+u718O7701NqKa3mSgLU+YuQM1luq1c5hqgsOGK1xc/zG42espuVGZcAGwXU9Ha/nQToEwxkgiUAcwc16NjbfxsydwGyNOzUhS3AIJ1l4pi8nYt1D1R+SKHupGiWFBQvdvdvRZXjHIvrOzGCKqi8XtbfdFNp2oZeVhTkIWXN5K1c8TG3tktqTPTcyYgMlT5bkWJAXxfdw729/roEYMLou4LW7CyDWCMcRqJo4mgOG6lEXDLx9vJ2ikZbLkLtxadSnm/yKIFE7bdLWObbfwAeHqujx4tIpnDCTFDE2NsUMhnPVnr8pC4RUEmBfNCOurrmT7TQg9aSO06pOo0MzzzA8ncbCSAMMyD0QFUAr1vTZPbpmDQqCg7FFmgIfHNWBbTbCrAYNW/fq3bkmrGsMpl5qWg1Kezu1LjemMW8SpNrG0riqQjEGArw8R8EiD9+mxOE1z6ogYoILpuZURKRqGZcyarXObyKaNwJ5NH0Nc4V+sga3yhxjX85pbE78z226qPspFgOFFhc5i8uzF+ONZRRMiNMj2ow27WpypNs25WpTH1lge3ko5NYzRfqJNqga5DxEt2ZL9fDtvGzDQSCqUEzwLU4Kirizwcp37WsMPCdlnKzeUZHOZcpuaJJgpipMDSvpnEx1ogrwuHdCLwtjFj478iSgry0xS04OiUGZwArqcUEJJFT9ZqoEy5zFWyNq9SFKbBXWNZz8WZW9fkNT7VHGpJ18MurDLWM+HSXhvUbntjS5xja3JNMV6nZGNzS9GL1MW5LJfJ2mzx31n/65VpinvmSXchfzEdQE/5VYzUMSdf91JVgLvdg0kIR1PrHKAMtroFMG8BZC4z1VzmWorWozvJE78I62/7luy2Thd+1cyhuk2FYV9tTt7pFOX+PsCY65KI2wBvmWpe1XZaGDMLNbF+srMmjQ1FsajxTqukzCpkSFGvI7OmLWswtOflDjdYlG5VuQ3wpi0K0rpxqkWYnywGeza60pStWR/NvITbabJfHfxLY8YvzlIsHNWHdYZuqRLdxjS11uZ8wdBWIfM8wDmXuUiULRm6q+ltqWqMmzVNcUaSlhkqFy679TtXA73M8go8zKn19H3be2oiqOGpQx42peilw7uQogt5WCa5sHi3WWa+WUYnllwZl6Ry94oPO/bb2iDCHM7/s8d+CxkVthh+5G7uazH1if7ruFFkcWlMB6s38E13kRVN6zBFjUt0rsmr3oMKd8miaalrr4yZRIuLcYYCb2lvi3N8ae8r+pMFb3Jg9iXkjXj2uvJxPlluAdDExbrKYuo1SdFt3q459ITbNd/aq7YDLgbQkSXCZOXAUadIhsVHADG1l0uvDjpx2W3Vlk0Xv4p7+aXnnZnLHC9s5W7S2WkZdixzkHCqHu5WLRdXqjAx5SVfOo0aaoEFmPQ2QBug9/OwL+EAx9dNU6OuM57N5LfyJ/E5mMsclu0wePri3bWmMK0bZ+wNaraQYZlDzeska7Os0EB0KWJkQ7AZq0xO5+WqRncVFV0s7tjJ9OyC8RBXHMpxR9pTWDtGPZpO9J+5m5GPVF9Pq+6eGWHy8xvq98P0Aen6TRMvSD22FfEy88maQ+9vARSCBd31KPGY3fnvFrEZ3Juvbmid+pf+baIq1cLfUtf8IUm0WpfqrjaUYt/DNJNUIqmIV6Rn/hLFwsYkw/rUwhUBu5VlD1dK89yKdP2ry7zbdssFyhnoA6G6YLnw1l2oeB22PC171KWzrvvqrGWiJDHfUOpYP84jaQlWcHG+VFYNXtrzti36H/EE61Rw3oTeAPpXDKYIU2HGx5u6V/AgY9C5hGw0d07vb7lL0kmYY21Ebxlc3Lu5juTLB/uZSxW7z2R1KeW62ijA4kGTM6uRQNdVFqwcqRsdeyQIXwSQSdzuMx3rqcs2+b9EjV1pJ0TQIvPbM500ha0JFyTpMfSCv3m7YnuVgV7LgPnHtFGEsS7H2BJK80de1Gv4Uif/e3bmYi42Zsu4thWG2/e3p3LZ0Bxd14JZW0XWxNvKq9/o0QVna5q1KqLTwFgptgnndC8m05Z5RVDYn+B/cELyrfoYpuJwDFi0hJKmzlq6vc3CrmVOeCHauy5+Ea+NMJq1tdrpN/aRWhu1KHhKGsuOlhKSuaKO0c2g+2BO/b2gU12h67XYS0apFmdjuDYladdY/hx2VCPWKLvNGs4A4zj0JusQVxpfDEWpuzhU4622RbLpxZlFxkph/cjEXqjZYrM6yjhNry6wqsRMK+HwTFRtWqELMdpiZTVG3dKz2EIoJaGYgdJxFgoGZSLU2SkqrwFv1jjhZfT8TedNbgR+UcaSa2ll4gSqDqYoTLsGrWjOvsF71rKoC7HOHqdQLFCB2ysM3UbEggueMG1VJhkXV6Wv3ypU09Bt463FRQGOiEszNi1BcQ3T8+WEqURdWvZiIW808DmnFRWWmOcnuOoPxpA2ivB0Vw6S7BiNLWr1yTHUWM2xxwYy0YJ9seJfv0zurgBmtH5woNUQEYOwC+cAm0TkaQKI+knza7smDlx4GuUpjvoJmDekIYrEam8mz/n2eB2093W0d4G1LLXN5cZmBne+VYWAkmCta6tSeUNbdAzIe7t2nBz2oAnNFahIqMYvKDg5AwN+EYM9Y7AWdgzTCqnTQA3vGT4yjtsAtbdf2TRTxJTtJZvbCVBOX6nlsVGFzCYJu1A3mjlmhKy8PKuvoOP/3QLgQjpFHjvkeKfJ3KBb0eygnsFo9NwaF5BUlrIeAFb2jYVX7uEuXV8N8Oi3eqpM9ODaIWw6AuxC5VQVQckAhik6MFAYcb2CimhUAUPCDuyrFZRJP5IdQk266cToCD959J8ECM6spd7XXkWaymYo4XN9gjCU4p3z0xl0E8BOJ4h1lp/loqHAHpEOSclkM1X047anaEzNZFDb5daWVHe/imSeNh2j9y+e5JQ+Ok0waeRP996cPrFvorWFINl6DFwaf6NKWIw84tYELf84fJhFqfR9zFMVd3TfOu3ourLC5kQrwBvLwu8D7G0TSHaaKkzjbwMxcQQZtzpp8eTHpWgl4VTGRd/+dyEhz10mNib6PgWwn/Yq2dT+6OaVNN/sMrEIUrvH9O5/gkXJpKwURryRBjx9qe7bEdKJ91nLdLOWtB4+A5BVa+o/kd+dtpR2v8EJtNZyZwHRm+vQ3cPFrNguaPvXrJ0wf7+60NyubLnhnOp7++zdE6tnWdDldfXsqm77+zg0KtXE/tXByjId5/T59Xzvskq+ON0EmNfLa76NQ9k7IANoGEZjpHC3vUX3GYD7QQaoZu160sbz7yVh0iiojPtWI1m7PG4sCX4G4DHp8gryfdDFWd8wxDHVEDQnvvnOCgahnwUfHsKlMri4/yBALFHkaK4h0GYoeVFV+Svl6YC2Skv9Jt0SioRu5mh0I8bbVcHaY4D/QUabCNH0xG3kBMig4K+chcv9i2jw09xvtkIztJlJEbp060gFSXLHxytRrt17zyl7iLN4s2/nnslfx6aDU+2uk4BibaAWzG9aFMuRcKcP68GD7BfVIeVWgM+6GR4E773rfumcbafL7IdQHTh2tU4GshcO7T8KcD+NRcZqJ13VyWwHwna/EiBL73DkQsSUT/QBL2Iglli/2mP9WNEHzPHPaHhPSjUcbAxu8lwz+8tEKfcra3kil5HW7CJcCuDmeql8+CjA0/mdUZmsS1aNL3Vp5a8dCg/1EM3wLAqQiaKGw/7kOQyucU37sTPYw+fVvY9W+scN1g1Nb6Taxs536df06iLTTRcpcngfEsMSr51DkVyvh3lHp49QsG3WSzttAKuWz3Bw+ss2omyo+WK5S5V23C0e0qqyK136hQ/8wX2thKm1YwnTrHVlAZhfuSS83nLzptc1P1uUPb1OyvGr8qTdR2Iy72VeSs6zFzCwUrPh3BBr47tejJDz4GxoE8K8FDI6LawwuTf3KYS/PmSqyXT4gWuQcx2g0wRmG3UiIAoXeWdzeTW+KWnZuLqCWnmWoeE8nSP39jFTrQ3zpgIbW6qnQDUQZWkhNV9JQpvDgPwB1JOb1HHmdhRLC2tVlyDcfSgm85aXcXKnw8xYJy3KkA4wysNieGVEUdc/WdEJyzsVYeYsH6PBYHVs+XjePU9BkbjHhbkp+S6d/8HhgIG3MtZFN5Zg774sgr/ojrCEdaYqztMecdptPqydxbW19nhdO8ZzLkbMY5pZtGiWq3pfT2HihIH479Fd1I24PM3ScFlDMFGbcwhwOTqqy+W4+7DD67xOBna299amtpRStHedB7/4AbN03b9aJ8lyylj3jU0F3dPgOx3qajNysN9V11DbkHAdzPxRj14q9DJSkyqM07SeG2XuXMRL9RvVHowlfh5gqlnNzAqYOrAd5olNooLYrIMqYO4zkqn6j7UEx3VXz7NRtVZ9CS4a1w/OCtOcp8Bir8y9WnmSp+kTk0iSt7m03qbTslCDYlqLBBDjrQDlRXbf1gH9wqqtTab6EECuzHRTsa0G16Tyv2QbYxa5t13TiNFbq+HFEmXlLX93s7ISrw4L1c8Ovu4B06lbtrsLADkUfZCNCyYhcG3tRo/rEwDfA1Y11gvVIAGaDZy3mQNcW+uyqnzHcMlq/hPHQWXaBLchdipIaiarhpiZRYoW0HNlaue3EnYJUeyC7Z4gBT8T+N37aUZYI8BiJju6eWwEFZRV8MFoC3BG53CNFlfoO128WdVXss28ynqjGGKWLAHm38Fx0L3YNdE1rQaRef2HoJ/qPhn4dRRsP96OR0YMtO+VHV+1+dPZFFPOmBuNoePUJpDNilTzw98esKVFIYpQ6Rl0fav+AR5Bs9N0kXQl4pFts58FiKIgPH7U0D00UXHTrtOinSfmO1UeitUE97ULtR7Zqe/1OuM3NcyS4eEP8SeF5SyZNO/P85n76qQG/efxTV79HEB9/LXba56D2HLRokSnzb48E86MfG49svmCFgCr5g6VWV40FKTLnLStT9WARAmTHaHodHWz9u/YXeIyS5QNSkz08EmA1kbB+m3QDmX7+1rrZ/hY9B6j2vqWcNNVXZInyfq+7BaTkabVmmnREh+iDaeNddGvcUlEwWvW6YWYiqJRzArRHRDWPn82+bJwnpB6gRJ8P6LC0dXpgNbpq0P0YqyLXrEtnAvFeGmccQ0VXjhvXOMCq3BHsnUDkXuotXWKAkyNbOCEgU85MI+VcsGsl77d/UuAUn6I0kqpdH5z3PBbpmGQ/GOIH9jhCzZJXsuD9FAZ5qK2lZVs4pu0PoZR4y78nBL2h5BjHQIetFXJwhQe8YrkDufz7s5Vf4SCokcPaI41DwrOYWNFbCCeRLXKNJxOD6jXQbg2vIzWZKw4YtUcZnXKHhrV5DYglDfqgHpAgRV09hKcbBcNIEr+5Mb+6O/h+xBAU6NvcVo56upuJI9xElkBQrqXyTpmJFwlfz2VnOyqXdBW9emq9ywW/DzIFiN+9s68MYv/8H1vXW2eHPD81wHEQG7uMJK7jbVM2MSlw1xsMtlU1BamMUIoNqas0LnBk2I08TTphZizTRWpky7LfseZ0ab3aenia3FHW3qlqcHdVwLc6ZotFYGI6A+6TkyjwHGaSesmVcGFMYVF1tmqv8us96OKHqclh9p9hhkZIlekPYDlgKp7HTMtakyEVgEG8SL2P07nrwR4asNiZbEFaryZwG6eDwFLzdY5ILDawdBCf71FHSzB4SZZpOI0mdkn6LBUfsepGs5NM1JVPLvQuroeE3Oq+vMXApS6GTO1BqZjkk7MoHFTixTUYK5OOFudCUPqtW3CZVRNXqw3gNXnqmkojfcHOAXI17Zldo8sZM+JcHuWW7b7PW7C+UsBShSKKSvH6cNeF77CR7VWCy2MAtCgM87qcnCCGbC3S0ep6aJVU5tuCpjvSTtRalPDe7bdEAYT3XN7HEL/dr5/+j4JEF2wsPuSWlwJYbpg1w+6qOTQkA0nksuMib1hLDxcOtR8mtKnA0yFh9/3h167M9t+2cShheNuHv8awaP+7f/tnrnajwM8nf8BPw5v2n3cso4mmzOUg12ODTJlawpvymHP7kvh2PegUcA6qVZOnLwWru0RLTm25mOrm6TFIEP+0KJ0fg1AuYh/3iCef+AcHKU7v1TDSmXcZKGaYePaetFtLyCnSmljYLLkGX05l8YWZEyso+t0/CAPr7RU7Y7PXuxnAEqsFElRBA1cy04ZNTLUNNwHHRZo4z6s4XRnKGXi/O6kwQ5pRo3cYylkO/Hfv08XAMUCFfWoTErPPpTDqedH/f1CgLu+//EmhwDDxc68Wh443l85aIf9NK2VXDq3DPf9CduQUKRpK1f23E8moYZwYCtDvy4PKDoaujq6YgbXOSq711JQHjIvAu03WjKba+U0Ji+EnwerwbRJGmUOkwsSVAX2PI8lVEO51STRflUxuFM7+03bk8D2pT8/UntfBbCHpHvz4w/Of2JbrDeDDSypFYpRQ2E2LhlS/7gXMfq/kO794TgPtWkFCWld5uYHSdQKQ+7bnaiKIjcksvfj1H70Sj9NQdYn+B/z5HEVLCAhBNxhchdFA7D0gRwnhknh1MQFo9GirmOLlgC0E1CoK4Q+SNxOamD68y8DCCflJBGtXAlo88c5KqOHZ1V9wEgehRWrs6zZAHCSIze3gns/T1ZeQvwPxElLo+14s3nndRSso2dynQNsKh7lVOTCquBdTznCqTY4pLutKWCaDd8EQYPzIL/W/2KAPCB1NHm0Ti4J2RxUNEL+H49ve9iWPQcpaZX8RYB2p3epcJhPaW94of2p/9Q1/juAtKWy1pBqtJ2eYNio3mxDnOyRdvtTglYO7s5f+fiXAPfMuKiVYUPKVidp1+qmdDNfYDhfs6G2Z7DuHS+2t4urfzXA/5yD7bdXB7YuhIMwvMKQvZ0zd/miCCxtHEbIJZzPvw8F4a8h5EDzWdUgI9LTPpJVI1vNoWx2UR2qvX6ryep7APaiig8ygaa3HVSZzcLOzVXUEy9jjCcD4ZtyUsTsnta3c6H/jSg4Xd7e1SYbxyHQh3/6y0Y9jS+Ww7ash74Tj2q/f9//XgB/0rSXsH7kJJ7gNuQ829jM1Whv6bLd+TWPL6GgjhyX+GC724sOlDEt7QVMMT2lqLq9C0RyIKc7SYZvBSiHTLKQT+iw9vyrH18EkGKEk8pPtwI57W7Xn89/LMAdbMXd+fd7/B+FXkwqt/2a4AAAAABJRU5ErkJggg==" alt="Balai Haraya">
+      <h1>Balai Haraya</h1>
       <p>Enter your PIN</p>
       <input type="password" id="pin" inputmode="numeric" autocomplete="off" required>
       <button type="submit" class="primary">Unlock</button>
@@ -338,6 +439,15 @@
       '<path d="M2.8 4.2h10.4M6.3 4.2V2.6h3.4v1.6M4.4 4.2l.6 9.2h6l.6-9.2" fill="none" ' +
       'stroke="currentColor" stroke-width="1.4" stroke-linecap="round" ' +
       'stroke-linejoin="round"/></svg>';
+
+    // 'disb' or 'book'. Each view keeps its own months, list and totals.
+    var view = 'disb';
+
+    var book = {
+      months: [], month: '', entries: [], total: 0, balance: 0,
+      editing: null, loaded: false,
+      stayOptions: [], inTimes: [], outTimes: [], paymentModes: []
+    };
 
     // ---------------------------------------------------------------------
     // Paste the web app URL from Apps Script here:
@@ -479,11 +589,16 @@
       var host = document.getElementById('months');
       host.innerHTML = '';
 
-      state.months.forEach(function (name) {
+      var months = view === 'book' ? book.months : state.months;
+      var current = view === 'book' ? book.month : state.month;
+
+      months.forEach(function (name) {
         var chip = document.createElement('button');
         chip.type = 'button';
-        chip.className = 'month' + (name === state.month ? ' on' : '');
-        chip.textContent = name;
+        chip.className = 'month' + (name === current ? ' on' : '');
+        // The tab prefix is redundant once the Bookings view is selected.
+        // "Bookings August 2026" -> "Aug 2026", as on the desktop.
+        chip.textContent = shortMonth(name);
         chip.onclick = function () { openMonth(name); };
         host.appendChild(chip);
       });
@@ -495,6 +610,8 @@
     }
 
     function renderList() {
+      if (view === 'book') return renderBookings();
+
       var host = document.getElementById('list');
       host.innerHTML = '';
 
@@ -558,11 +675,19 @@
       table.appendChild(body);
 
       var foot = document.createElement('tfoot');
-      foot.innerHTML =
-        '<tr><td colspan="3"></td>' +
-        '<td class="num">Total</td>' +
-        '<td class="num">' + money(state.total) + '</td>' +
-        '<td></td><td></td></tr>';
+      var rows = '<tr><td colspan="3"></td><td class="num">Total</td>' +
+        '<td class="num">' + money(state.total) + '</td><td></td><td></td></tr>';
+
+      if (state.gross !== null && state.gross !== undefined) {
+        var net = state.gross - state.total;
+        rows += '<tr><td colspan="3"></td><td class="num">Gross</td>' +
+          '<td class="num">' + money(state.gross) + '</td><td></td><td></td></tr>' +
+          '<tr><td colspan="3"></td><td class="num">Net</td>' +
+          '<td class="num"' + (net < 0 ? ' style="color:var(--danger)"' : '') + '>' +
+          money(net) + '</td><td></td><td></td></tr>';
+      }
+
+      foot.innerHTML = rows;
       table.appendChild(foot);
 
       host.appendChild(table);
@@ -574,19 +699,379 @@
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    /** Booking income for the shown month, for the gross and net lines. */
+    function loadGross() {
+      var parts = String(state.month).split(' ');      // "Sep 2026"
+      var index = MONTH_SHORT.indexOf(parts[0]);
+      if (index < 0) return;
+
+      call('bookingGross', [Number(parts[1]), index]).then(function (gross) {
+        state.gross = gross;
+        if (view === 'disb') renderList();
+      }).catch(function () { /* a missing figure must not block the list */ });
+    }
+
     function applyLedger(result) {
       if (result.months) state.months = result.months;
       var ledger = result.ledger || result;
       state.month = ledger.sheetName;
       state.entries = ledger.entries;
       state.total = ledger.total;
+      state.gross = null;
       renderMonths();
       renderList();
+      loadGross();
+    }
+
+    var MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+
+    function shortMonth(name) {
+      var text = String(name).replace(/^Bookings /, '');
+      var parts = text.split(' ');
+      var index = MONTH_LONG.indexOf(parts[0]);
+      return index < 0 ? text : MONTH_SHORT[index] + ' ' + (parts[1] || '');
+    }
+
+    /**
+     * Cancelled beats rebooked beats paid. The first two are read from the
+     * remarks, which is where the sheet already records them.
+     */
+    function bookingState(entry) {
+      var remarks = (entry.remarks || '').toLowerCase();
+      if (remarks.indexOf('cancel') >= 0) return 'cancelled';
+      if (remarks.indexOf('rebook') >= 0) return 'rebooked';
+
+      var owed = Number(String(entry.balanceAfterDp).replace(/[^0-9.\-]/g, ''));
+      var paid = Number(entry.fp) || 0;
+      var billed = Number(String(entry.discounted).replace(/[^0-9.\-]/g, '')) || Number(entry.totalCost) || 0;
+
+      if (billed > 0 && isFinite(owed) && owed === paid) return 'paid';
+      return '';
+    }
+
+    function renderBookings() {
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      if (!book.entries.length) {
+        host.innerHTML = '<div class="empty">No bookings in ' +
+          escapeHtml(book.month.replace(/^Bookings /, '')) +
+          ' yet.<br>Tap + to add one.</div>';
+        return;
+      }
+
+      var table = document.createElement('table');
+      table.className = 'grid';
+
+      // Only six of the fourteen fields fit a phone; the pencil opens the rest.
+      table.innerHTML =
+        '<colgroup>' +
+        '<col style="width:6%">' +    // No.
+        '<col style="width:24%">' +   // Name
+        '<col style="width:13%">' +   // Check in
+        '<col style="width:8%">' +    // Pax
+        '<col style="width:17%">' +   // Total
+        '<col style="width:16%">' +   // Balance
+        '<col style="width:16%">' +   // edit / delete
+        '</colgroup>' +
+        '<thead><tr>' +
+        '<th class="mid">No.</th>' +
+        '<th>Name</th>' +
+        '<th class="mid">In</th>' +
+        '<th class="mid">Pax</th>' +
+        '<th class="num">Total</th>' +
+        '<th class="num">Balance</th>' +
+        '<th></th>' +
+        '</tr></thead>';
+
+      var body = document.createElement('tbody');
+
+      book.entries.forEach(function (entry) {
+        var tr = document.createElement('tr');
+        var state = bookingState(entry);
+        if (state) tr.className = state;
+        if (entry.remarks) tr.title = entry.remarks;
+        tr.innerHTML =
+          '<td class="mid">' + escapeHtml(entry.no) + '</td>' +
+          '<td class="payee" title="' + escapeHtml(entry.name) + '">' +
+          escapeHtml(entry.name) + '</td>' +
+          '<td class="mid">' + escapeHtml(entry.inDateDisplay) + '</td>' +
+          '<td class="mid">' + escapeHtml(String(entry.pax || '')) + '</td>' +
+          '<td class="num">' + escapeHtml(entry.discounted || money(entry.totalCost)) + '</td>' +
+          '<td class="num" title="' + escapeHtml(entry.balanceFinal) + '">' +
+          escapeHtml(entry.balanceFinal) + '</td>' +
+          '<td class="act">' +
+          '<button class="rowbtn edit" title="Edit">' + PENCIL + '</button>' +
+          '<button class="rowbtn del" title="Delete">' + TRASH + '</button>' +
+          '</td>';
+
+        var cell = tr.lastChild;
+        cell.firstChild.onclick = function () { openBookForm(entry); };
+        cell.lastChild.onclick = function () { deleteBooking(entry, tr); };
+        body.appendChild(tr);
+      });
+
+      table.appendChild(body);
+
+      var foot = document.createElement('tfoot');
+      foot.innerHTML =
+        '<tr><td colspan="3"></td><td class="num">Total</td>' +
+        '<td class="num">' + money(book.total) + '</td>' +
+        '<td></td><td></td></tr>';
+      table.appendChild(foot);
+
+      host.appendChild(table);
+    }
+
+    function applyBookings(result) {
+      if (result.months) book.months = result.months;
+      var ledger = result.ledger || result;
+      book.month = ledger.sheetName;
+      book.entries = ledger.entries;
+      book.total = ledger.total;
+      renderMonths();
+      renderList();
+    }
+
+    // ------------------------------------------------------- view switch
+
+    function fillSelect(id, options, withOther) {
+      var select = document.getElementById(id);
+      select.innerHTML = '';
+      options.forEach(function (name) {
+        var option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+      if (withOther) {
+        var other = document.createElement('option');
+        other.value = '__other__';
+        other.textContent = 'Other...';
+        select.appendChild(other);
+      }
+    }
+
+    /** Shows the free-text box whenever "Other..." is picked. */
+    function wireOther(selectId, wrapId) {
+      document.getElementById(selectId).onchange = function () {
+        document.getElementById(wrapId)
+          .classList.toggle('hide', this.value !== '__other__');
+      };
+    }
+
+    function setSelectOrOther(selectId, wrapId, otherId, value) {
+      var select = document.getElementById(selectId);
+      var known = [].some.call(select.options, function (o) { return o.value === value; });
+
+      if (value && !known) {
+        select.value = '__other__';
+        document.getElementById(otherId).value = value;
+        document.getElementById(wrapId).classList.remove('hide');
+      } else {
+        select.value = value || select.options[0].value;
+        document.getElementById(otherId).value = '';
+        document.getElementById(wrapId).classList.add('hide');
+      }
+    }
+
+    function readSelectOrOther(selectId, otherId) {
+      var value = document.getElementById(selectId).value;
+      return value === '__other__'
+        ? document.getElementById(otherId).value.trim()
+        : value;
+    }
+
+    function switchView(next) {
+      if (view === next) return;
+      view = next;
+
+      document.getElementById('viewDisb').classList.toggle('on', next === 'disb');
+      document.getElementById('viewBook').classList.toggle('on', next === 'book');
+      document.getElementById('title').textContent =
+        next === 'book' ? 'Bookings' : 'Disbursement';
+
+      if (next === 'book' && !book.loaded) {
+        call('getBookingBootstrap', []).then(function (data) {
+          book.loaded = true;
+          book.stayOptions = data.stayOptions;
+          book.inTimes = data.inTimes;
+          book.outTimes = data.outTimes;
+          book.paymentModes = data.paymentModes;
+
+          fillSelect('bStay', data.stayOptions, true);
+          fillSelect('bInTime', data.inTimes, true);
+          fillSelect('bOutTime', data.outTimes, true);
+          fillSelect('bDpMode', [''].concat(data.paymentModes), false);
+          fillSelect('bDpMode2', [''].concat(data.paymentModes), false);
+          fillSelect('bFpMode', [''].concat(data.paymentModes), false);
+          fillSelect('bFpMode2', [''].concat(data.paymentModes), false);
+
+          book.months = data.months;
+          book.month = data.selected;
+          applyBookings({ months: data.months, ledger: data.ledger });
+        }).catch(failed);
+        return;
+      }
+
+      renderMonths();
+      renderList();
+    }
+
+    // ------------------------------------------------------- booking form
+
+    function openBookForm(entry) {
+      book.editing = entry || null;
+
+      document.getElementById('bookTitle').textContent = entry ? 'Edit booking' : 'New booking';
+      document.getElementById('bookSave').textContent = entry ? 'Save' : 'Add';
+
+      // Assigned on save, continuing from the highest in the ledger.
+      document.getElementById('bAr').value = entry ? entry.ar : '(auto)';
+      document.getElementById('bName').value = entry ? entry.name : '';
+      document.getElementById('bPax').value = entry ? (entry.pax || '') : '';
+      document.getElementById('bInDate').value = entry ? entry.inDateIso : state.today;
+      document.getElementById('bOutDate').value = entry ? entry.outDateIso : '';
+      document.getElementById('bTotal').value = entry ? money(entry.totalCost) : '';
+      document.getElementById('bDpDate').value = entry ? entry.dpDateIso : '';
+      document.getElementById('bDp').value = entry && entry.dp ? money(entry.dp) : '';
+      document.getElementById('bFp').value = entry && entry.fp ? money(entry.fp) : '';
+      document.getElementById('bRemarks').value = entry ? entry.remarks : '';
+
+      setSelectOrOther('bStay', 'bStayOtherWrap', 'bStayOther', entry ? entry.stay : '');
+      setSelectOrOther('bInTime', 'bInTimeOtherWrap', 'bInTimeOther', entry ? entry.inTime : '');
+      setSelectOrOther('bOutTime', 'bOutTimeOtherWrap', 'bOutTimeOther', entry ? entry.outTime : '');
+      splitModes(entry ? entry.dpMode : '', 'bDpMode', 'bDpMode2');
+      splitModes(entry ? entry.fpMode : '', 'bFpMode', 'bFpMode2');
+
+      var state = entry ? bookingState(entry) : '';
+      document.getElementById('bStatus').value =
+        state === 'cancelled' ? 'CANCELLED' : state === 'rebooked' ? 'REBOOKED' : '';
+
+      document.getElementById('bookScrim').classList.add('on');
+    }
+
+    /** Two dropdowns into one cell: "BPI + Cash". */
+    function combineModes(firstId, secondId) {
+      var a = document.getElementById(firstId).value;
+      var b = document.getElementById(secondId).value;
+      if (!a) return b;
+      if (!b || a === b) return a;
+      return a + ' + ' + b;
+    }
+
+    function splitModes(value, firstId, secondId) {
+      var parts = String(value || '').split('+').map(function (p) { return p.trim(); })
+        .filter(function (p) { return p.length > 0; });
+      setOption(firstId, parts[0] || '');
+      setOption(secondId, parts[1] || '');
+    }
+
+    /** Keeps a value the sheet holds even when it is not one of the standard modes. */
+    function setOption(id, value) {
+      var select = document.getElementById(id);
+      var known = [].some.call(select.options, function (o) { return o.value === value; });
+      if (value && !known) {
+        var option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      }
+      select.value = value;
+    }
+
+    function closeBookForm() {
+      document.getElementById('bookScrim').classList.remove('on');
+      book.editing = null;
+    }
+
+    function submitBookForm(event) {
+      event.preventDefault();
+
+      var name = document.getElementById('bName').value.trim();
+      if (!name) { say('Enter a name.', true); return; }
+
+      var inDate = document.getElementById('bInDate').value;
+      if (!inDate) { say('Enter a check-in date.', true); return; }
+
+      function amount(id) {
+        var raw = document.getElementById(id).value.trim();
+        if (!raw) return '';
+        var value = parseAmount(raw);
+        return value === null ? '' : value;
+      }
+
+      var payload = {
+        ar: document.getElementById('bAr').value.trim(),
+        name: name,
+        stay: readSelectOrOther('bStay', 'bStayOther'),
+        remarks: document.getElementById('bRemarks').value.trim(),
+        pax: document.getElementById('bPax').value.trim(),
+        inDate: inDate,
+        inTime: readSelectOrOther('bInTime', 'bInTimeOther'),
+        outDate: document.getElementById('bOutDate').value,
+        outTime: readSelectOrOther('bOutTime', 'bOutTimeOther'),
+        totalCost: amount('bTotal'),
+        dpDate: document.getElementById('bDpDate').value,
+        dp: amount('bDp'),
+        dpMode: combineModes('bDpMode', 'bDpMode2'),
+        fp: amount('bFp'),
+        fpMode: combineModes('bFpMode', 'bFpMode2')
+      };
+
+      var editing = book.editing;
+      var work = editing
+        ? call('updateBooking', [editing.sheetName || book.month, editing.sheetRow, payload])
+        : call('addBooking', [payload]);
+
+      var status = document.getElementById('bStatus').value;
+
+      work.then(function (result) {
+        // The marker lives in the remarks, so it is applied after the row is
+        // written rather than being part of the same payload.
+        var target = (result.ledger.entries || []).filter(function (e) {
+          return e.name === payload.name && e.inDateIso === payload.inDate;
+        })[0];
+
+        if (target && bookingState(target) !== (status ? status.toLowerCase() : '')) {
+          return call('markBooking', [result.ledger.sheetName, target.sheetRow, status || null])
+            .then(function (marked) {
+              closeBookForm();
+              applyBookings(marked);
+              say(editing ? 'Saved.' : 'Added, AR ' + (result.ar || ''));
+            });
+        }
+
+        closeBookForm();
+        applyBookings(result);
+        say(editing ? 'Saved.' : 'Added, AR ' + (result.ar || ''));
+      }).catch(failed);
+    }
+
+    function deleteBooking(entry, tr) {
+      if (!confirm('Delete No. ' + entry.no + ' - ' + entry.name + '?\n\n' +
+        'The bookings below it move up and are renumbered.')) return;
+
+      tr.className = 'busy';
+      call('deleteBookings', [book.month, [entry.sheetRow]]).then(function (result) {
+        applyBookings(result);
+        say('Deleted.');
+      }).catch(function (error) { tr.className = ''; failed(error); });
     }
 
     // ------------------------------------------------------- actions
 
     function openMonth(name) {
+      if (view === 'book') {
+        book.month = name;
+        renderMonths();
+        call('getBookings', [name]).then(applyBookings).catch(failed);
+        return;
+      }
+
       state.month = name;
       renderMonths();
       call('getEntries', [name]).then(applyLedger).catch(failed);
@@ -666,7 +1151,42 @@
 
     // ------------------------------------------------------- wiring
 
-    document.getElementById('add').onclick = function () { openForm(null); };
+    document.getElementById('add').onclick = function () {
+      if (view === 'book') openBookForm(null);
+      else openForm(null);
+    };
+
+    document.getElementById('viewDisb').onclick = function () { switchView('disb'); };
+    document.getElementById('viewBook').onclick = function () { switchView('book'); };
+    document.getElementById('bookCancel').onclick = closeBookForm;
+    document.getElementById('bookForm').onsubmit = submitBookForm;
+    document.getElementById('bookScrim').onclick = function (event) {
+      if (event.target.id === 'bookScrim') closeBookForm();
+    };
+
+    wireOther('bStay', 'bStayOtherWrap');
+    wireOther('bInTime', 'bInTimeOtherWrap');
+    wireOther('bOutTime', 'bOutTimeOtherWrap');
+
+    ['bTotal', 'bDp', 'bFp'].forEach(function (id) {
+      document.getElementById(id).addEventListener('input', function () {
+        var caret = this.selectionStart;
+        var before = this.value;
+        var digitsRight = 0;
+        for (var i = caret; i < before.length; i++) {
+          if (before.charAt(i) >= '0' && before.charAt(i) <= '9') digitsRight++;
+        }
+        var after = moneyWhileTyping(before);
+        if (after === before) return;
+        this.value = after;
+        var index = after.length, seen = 0;
+        while (index > 0 && seen < digitsRight) {
+          index--;
+          if (after.charAt(index) >= '0' && after.charAt(index) <= '9') seen++;
+        }
+        this.setSelectionRange(index, index);
+      });
+    });
     document.getElementById('formCancel').onclick = closeForm;
     document.getElementById('form').onsubmit = submitForm;
     document.getElementById('scrim').onclick = function (event) {
