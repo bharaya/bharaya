@@ -133,7 +133,9 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);   /* columns need separating too */
     }
+    .grid th:last-child, .grid td:last-child { border-right: 0; }
 
     .grid th {
       background: var(--bg);
@@ -338,6 +340,7 @@
     <div class="views">
       <button class="view on" id="viewDisb">Disbursement</button>
       <button class="view" id="viewBook">Bookings</button>
+      <button class="view" id="viewSum">Summary</button>
     </div>
     <div class="months" id="months"></div>
   </header>
@@ -469,6 +472,8 @@
       editing: null, loaded: false,
       stayOptions: [], inTimes: [], outTimes: [], paymentModes: []
     };
+
+    var summary = { rows: [], loaded: false };
 
     // ---------------------------------------------------------------------
     // Paste the web app URL from Apps Script here:
@@ -632,6 +637,7 @@
 
     function renderList() {
       if (view === 'book') return renderBookings();
+      if (view === 'sum') return renderSummary();
 
       var host = document.getElementById('list');
       host.innerHTML = '';
@@ -733,7 +739,13 @@
       }).catch(function () { /* a missing figure must not block the list */ });
     }
 
+    /** The summary is stale once either ledger changes. */
+    function invalidateSummary() {
+      summary.loaded = false;
+    }
+
     function applyLedger(result) {
+      invalidateSummary();
       if (result.months) state.months = result.months;
       var ledger = result.ledger || result;
       state.month = ledger.sheetName;
@@ -855,7 +867,65 @@
       host.appendChild(table);
     }
 
+    function renderSummary() {
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      if (!summary.rows.length) {
+        host.innerHTML = '<div class="empty">Nothing to total yet.</div>';
+        return;
+      }
+
+      var table = document.createElement('table');
+      table.className = 'grid';
+      table.innerHTML =
+        '<colgroup>' +
+        '<col style="width:22%">' +
+        '<col style="width:26%">' +
+        '<col style="width:26%">' +
+        '<col style="width:26%">' +
+        '</colgroup>' +
+        '<thead><tr>' +
+        '<th>Month</th>' +
+        '<th class="num">Gross</th>' +
+        '<th class="num">Out</th>' +
+        '<th class="num">Net</th>' +
+        '</tr></thead>';
+
+      var body = document.createElement('tbody');
+      var totalGross = 0, totalSpent = 0;
+
+      summary.rows.forEach(function (row) {
+        totalGross += row.gross;
+        totalSpent += row.spent;
+
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td class="payee">' + escapeHtml(row.month) + '</td>' +
+          '<td class="num">' + money(row.gross) + '</td>' +
+          '<td class="num">' + money(row.spent) + '</td>' +
+          '<td class="num"' + (row.net < 0 ? ' style="color:var(--danger)"' : '') + '>' +
+          money(row.net) + '</td>';
+        body.appendChild(tr);
+      });
+
+      table.appendChild(body);
+
+      var net = totalGross - totalSpent;
+      var foot = document.createElement('tfoot');
+      foot.innerHTML =
+        '<tr><td>All months</td>' +
+        '<td class="num">' + money(totalGross) + '</td>' +
+        '<td class="num">' + money(totalSpent) + '</td>' +
+        '<td class="num"' + (net < 0 ? ' style="color:var(--danger)"' : '') + '>' +
+        money(net) + '</td></tr>';
+      table.appendChild(foot);
+
+      host.appendChild(table);
+    }
+
     function applyBookings(result) {
+      invalidateSummary();
       if (result.months) book.months = result.months;
       var ledger = result.ledger || result;
       book.month = ledger.sheetName;
@@ -920,8 +990,22 @@
 
       document.getElementById('viewDisb').classList.toggle('on', next === 'disb');
       document.getElementById('viewBook').classList.toggle('on', next === 'book');
-      document.getElementById('title').textContent =
-        next === 'book' ? 'Bookings' : 'Disbursement';
+      document.getElementById('viewSum').classList.toggle('on', next === 'sum');
+
+      // The summary spans every month, so it has no month strip and nothing
+      // to add.
+      document.getElementById('months').style.display = next === 'sum' ? 'none' : '';
+      document.getElementById('add').style.display = next === 'sum' ? 'none' : '';
+
+      if (next === 'sum') {
+        if (summary.loaded) { renderList(); return; }
+        call('getSummary', []).then(function (rows) {
+          summary.rows = rows;
+          summary.loaded = true;
+          renderList();
+        }).catch(failed);
+        return;
+      }
 
       if (next === 'book' && !book.loaded) {
         call('getBookingBootstrap', []).then(function (data) {
@@ -1190,6 +1274,7 @@
 
     document.getElementById('viewDisb').onclick = function () { switchView('disb'); };
     document.getElementById('viewBook').onclick = function () { switchView('book'); };
+    document.getElementById('viewSum').onclick = function () { switchView('sum'); };
     document.getElementById('bookCancel').onclick = closeBookForm;
     document.getElementById('bookForm').onsubmit = submitBookForm;
     document.getElementById('bookScrim').onclick = function (event) {
