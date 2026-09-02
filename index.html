@@ -189,6 +189,47 @@
 
     .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
 
+    /* ------------------------------------------- summary breakdown */
+
+    .section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 14px 2px 5px;
+    }
+    .sectitle { font-size: 12px; font-weight: 700; flex: 0 0 auto; }
+
+    .scope {
+      flex: 1 1 auto;
+      max-width: 170px;
+      padding: 5px 6px;
+      font: inherit;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .lead { font-size: 11px; color: var(--muted); margin: 0 2px 6px; }
+
+    /* The bar sits under the category name rather than in a column of its own:
+       a third column would leave the bar too narrow to read on a phone. */
+    .cat { font-size: 11px; padding-left: 2px; }
+    .cat.top { font-weight: 700; }
+    .cat.none { color: var(--muted); }
+
+    .track {
+      height: 5px;
+      margin-top: 4px;
+      border-radius: 3px;
+      background: var(--line);
+      overflow: hidden;
+    }
+    .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+
+    .pct { color: var(--muted); font-size: 10px; margin-top: 3px; }
+
     /* ---------------------------------------------------------- buttons */
 
     .fab {
@@ -473,7 +514,8 @@
       stayOptions: [], inTimes: [], outTimes: [], paymentModes: []
     };
 
-    var summary = { rows: [], loaded: false };
+    // scope is an index into rows, or -1 for every month at once.
+    var summary = { rows: [], loaded: false, scope: -1 };
 
     // ---------------------------------------------------------------------
     // Paste the web app URL from Apps Script here:
@@ -742,6 +784,8 @@
     /** The summary is stale once either ledger changes. */
     function invalidateSummary() {
       summary.loaded = false;
+      // The picker holds a row index, and a reload can shift what that means.
+      summary.scope = -1;
     }
 
     function applyLedger(result) {
@@ -922,7 +966,105 @@
       table.appendChild(foot);
 
       host.appendChild(table);
+      renderBreakdown(host);
     }
+
+    /**
+     * Where the disbursements went, biggest share first, for the month in the
+     * picker or for all of them. Same figures as the Out column above: both
+     * come from the one read of each month.
+     */
+    function renderBreakdown(host) {
+      var scope = summary.scope >= 0 && summary.scope < summary.rows.length
+        ? [summary.rows[summary.scope]]
+        : summary.rows;
+
+      var spent = 0;
+      var totals = {};
+      state.categories.forEach(function (name) { totals[name] = 0; });
+
+      scope.forEach(function (row) {
+        spent += row.spent;
+        var byCategory = row.byCategory || {};
+        Object.keys(byCategory).forEach(function (name) {
+          totals[name] = (totals[name] || 0) + byCategory[name];
+        });
+      });
+
+      // Anything in the Amount column that no category column accounts for.
+      var categorised = 0;
+      Object.keys(totals).forEach(function (name) { categorised += totals[name]; });
+      if (spent - categorised > 0.005) totals['Uncategorised'] = spent - categorised;
+
+      var ranked = Object.keys(totals)
+        .map(function (name) { return { name: name, amount: totals[name] }; })
+        .sort(function (a, b) {
+          return b.amount - a.amount || a.name.localeCompare(b.name);
+        });
+
+      // --- the heading, with the month picker beside it
+      var section = document.createElement('div');
+      section.className = 'section';
+
+      var options = '<option value="-1">All months</option>';
+      for (var i = summary.rows.length - 1; i >= 0; i--) {     // newest first
+        options += '<option value="' + i + '">' +
+          escapeHtml(summary.rows[i].month) + '</option>';
+      }
+
+      section.innerHTML = '<span class="sectitle">Where it went</span>' +
+        '<select class="scope" id="sumScope">' + options + '</select>';
+      host.appendChild(section);
+
+      var picker = document.getElementById('sumScope');
+      picker.value = String(summary.scope);
+      picker.addEventListener('change', function () {
+        summary.scope = Number(this.value);
+        renderSummary();
+      });
+
+      var lead = document.createElement('div');
+      lead.className = 'lead';
+      lead.textContent = spent <= 0
+        ? 'Nothing spent.'
+        : ranked[0].name + ' leads at ' + percent(ranked[0].amount / spent);
+      host.appendChild(lead);
+
+      // --- the table itself
+      var table = document.createElement('table');
+      table.className = 'grid';
+      table.innerHTML =
+        '<colgroup><col style="width:56%"><col style="width:44%"></colgroup>' +
+        '<thead><tr><th>Category</th><th class="num">Amount</th></tr></thead>';
+
+      var body = document.createElement('tbody');
+
+      ranked.forEach(function (entry, index) {
+        var share = spent > 0 ? entry.amount / spent : 0;
+        var classes = 'cat' +
+          (index === 0 && entry.amount > 0 ? ' top' : '') +
+          (entry.name === 'Uncategorised' ? ' none' : '');
+
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><div class="' + classes + '">' + escapeHtml(entry.name) + '</div>' +
+          '<div class="track"><div class="fill" style="width:' +
+          (share * 100).toFixed(1) + '%"></div></div></td>' +
+          '<td class="num"><div>' + money(entry.amount) + '</div>' +
+          '<div class="pct">' + percent(share) + '</div></td>';
+        body.appendChild(tr);
+      });
+
+      table.appendChild(body);
+
+      var foot = document.createElement('tfoot');
+      foot.innerHTML = '<tr><td>Total</td><td class="num">' + money(spent) + '</td></tr>';
+      table.appendChild(foot);
+
+      host.appendChild(table);
+    }
+
+    function percent(share) { return (share * 100).toFixed(1) + '%'; }
 
     function applyBookings(result) {
       invalidateSummary();
