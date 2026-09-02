@@ -675,16 +675,17 @@
       table.appendChild(body);
 
       var foot = document.createElement('tfoot');
-      var rows = '<tr><td colspan="3"></td><td class="num">Total</td>' +
-        '<td class="num">' + money(state.total) + '</td><td></td><td></td></tr>';
+      function summary(label, amount, red) {
+        return '<tr><td colspan="2"></td><td class="num" colspan="2">' + label + '</td>' +
+          '<td class="num"' + (red ? ' style="color:var(--danger)"' : '') + '>' +
+          money(amount) + '</td><td></td><td></td></tr>';
+      }
+
+      var rows = summary('Total', state.total, false);
 
       if (state.gross !== null && state.gross !== undefined) {
         var net = state.gross - state.total;
-        rows += '<tr><td colspan="3"></td><td class="num">Gross</td>' +
-          '<td class="num">' + money(state.gross) + '</td><td></td><td></td></tr>' +
-          '<tr><td colspan="3"></td><td class="num">Net</td>' +
-          '<td class="num"' + (net < 0 ? ' style="color:var(--danger)"' : '') + '>' +
-          money(net) + '</td><td></td><td></td></tr>';
+        rows += summary('Gross', state.gross, false) + summary('Net', net, net < 0);
       }
 
       foot.innerHTML = rows;
@@ -728,6 +729,12 @@
     var MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'];
 
+    /** "3-Jul" + "9:00 AM" -> "3-Jul 9:00AM", tight enough for the column. */
+    function withTime(date, time) {
+      if (!time) return date;
+      return date + ' ' + String(time).replace(/\s+/g, '');
+    }
+
     function shortMonth(name) {
       var text = String(name).replace(/^Bookings /, '');
       var parts = text.split(' ');
@@ -770,11 +777,11 @@
       table.innerHTML =
         '<colgroup>' +
         '<col style="width:6%">' +    // No.
-        '<col style="width:24%">' +   // Name
-        '<col style="width:13%">' +   // Check in
-        '<col style="width:8%">' +    // Pax
-        '<col style="width:17%">' +   // Total
-        '<col style="width:16%">' +   // Balance
+        '<col style="width:17%">' +   // Name
+        '<col style="width:23%">' +   // Check in, with its time
+        '<col style="width:6%">' +    // Pax
+        '<col style="width:18%">' +   // Total
+        '<col style="width:14%">' +   // Balance
         '<col style="width:16%">' +   // edit / delete
         '</colgroup>' +
         '<thead><tr>' +
@@ -798,7 +805,7 @@
           '<td class="mid">' + escapeHtml(entry.no) + '</td>' +
           '<td class="payee" title="' + escapeHtml(entry.name) + '">' +
           escapeHtml(entry.name) + '</td>' +
-          '<td class="mid">' + escapeHtml(entry.inDateDisplay) + '</td>' +
+          '<td class="mid">' + escapeHtml(withTime(entry.inDateDisplay, entry.inTime)) + '</td>' +
           '<td class="mid">' + escapeHtml(String(entry.pax || '')) + '</td>' +
           '<td class="num">' + escapeHtml(entry.discounted || money(entry.totalCost)) + '</td>' +
           '<td class="num" title="' + escapeHtml(entry.balanceFinal) + '">' +
@@ -818,7 +825,7 @@
 
       var foot = document.createElement('tfoot');
       foot.innerHTML =
-        '<tr><td colspan="3"></td><td class="num">Total</td>' +
+        '<tr><td colspan="2"></td><td class="num" colspan="2">Total</td>' +
         '<td class="num">' + money(book.total) + '</td>' +
         '<td></td><td></td></tr>';
       table.appendChild(foot);
@@ -1223,10 +1230,23 @@
      */
     function pinAddButton() {
       var vv = window.visualViewport;
-      if (!vv) return;
-
       var fab = document.getElementById('add');
+      if (!vv || !fab) return;
+
       var scale = vv.scale || 1;
+
+      // Unzoomed, plain CSS puts it in the corner correctly and copes with the
+      // address bar on its own. Overriding that was mispositioning the button.
+      if (scale <= 1.01) {
+        fab.style.left = '';
+        fab.style.top = '';
+        fab.style.right = '';
+        fab.style.bottom = '';
+        fab.style.transform = '';
+        return;
+      }
+
+      // Zoomed in, follow what is actually on screen.
       var size = 50 / scale;
       var margin = 16 / scale;
 
