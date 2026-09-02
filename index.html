@@ -438,7 +438,7 @@
         <input type="text" id="fParticular" autocomplete="off">
       </label>
       <label>S.I. No.
-        <input type="text" id="fSiNo" autocomplete="off">
+        <input type="text" id="fSiNo" inputmode="numeric" autocomplete="off">
       </label>
       <label>Amount
         <input type="text" id="fAmount" inputmode="decimal" required>
@@ -1309,6 +1309,16 @@
     document.getElementById('scrim').onclick = function (event) {
       if (event.target.id === 'scrim') closeForm();
     };
+
+    // S.I. numbers are numeric; anything else is dropped as it is typed.
+    document.getElementById('fSiNo').addEventListener('input', function () {
+      var digits = this.value.replace(/\D/g, '');
+      if (digits === this.value) return;
+
+      var caret = this.selectionStart - (this.value.length - digits.length);
+      this.value = digits;
+      this.setSelectionRange(Math.max(0, caret), Math.max(0, caret));
+    });
 
     // Live peso formatting, keeping the caret in the same place among the digits.
     document.getElementById('fAmount').addEventListener('input', function () {
