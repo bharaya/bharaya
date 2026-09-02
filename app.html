@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card: #ffffff;
+      --line: #e2e2e7;
+      --text: #1c1c1e;
+      --muted: #6b6b70;
+      --accent: #1a73e8;
+      --danger: #c5221f;
+      --pick: #e8f0fe;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body { display: flex; flex-direction: column; }
+
+    /* ---------------------------------------------------------- top bar */
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px 0;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+
+    .months {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scrollbar-width: none;
+    }
+    .months::-webkit-scrollbar { display: none; }
+
+    .month {
+      flex: 0 0 auto;
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 14px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .month.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+    /* ---------------------------------------------------------- list */
+
+    main { flex: 1; overflow-y: auto; padding: 10px 12px 96px; }
+
+    .row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .row.on { background: var(--pick); border-color: var(--accent); }
+
+    .no {
+      flex: 0 0 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .row.on .no { background: var(--accent); color: #fff; }
+
+    .body { flex: 1; min-width: 0; }
+    .line1 { display: flex; justify-content: space-between; gap: 8px; }
+    .payee { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .line2 { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    .total {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px;
+      margin-top: 4px;
+      border-top: 2px solid var(--line);
+      font-weight: 700;
+    }
+    .total .amount { font-size: 17px; }
+
+    .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+
+    /* ---------------------------------------------------------- buttons */
+
+    .fab {
+      position: fixed;
+      right: 18px;
+      bottom: 22px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      font-size: 30px;
+      line-height: 1;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+      cursor: pointer;
+    }
+
+    .actions {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: none;
+      gap: 8px;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      background: var(--card);
+      border-top: 1px solid var(--line);
+    }
+    .actions.on { display: flex; }
+    .actions button { flex: 1; }
+
+    button, .btn {
+      padding: 12px 14px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+    button:disabled { opacity: .45; }
+
+    /* ---------------------------------------------------------- form */
+
+    .scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .4);
+      display: none;
+      align-items: flex-end;
+      z-index: 20;
+    }
+    .scrim.on { display: flex; }
+
+    .sheet {
+      background: var(--card);
+      width: 100%;
+      max-height: 92vh;
+      overflow-y: auto;
+      border-radius: 16px 16px 0 0;
+      padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    }
+    @media (min-width: 640px) {
+      .scrim { align-items: center; justify-content: center; }
+      .sheet { max-width: 480px; border-radius: 14px; }
+    }
+
+    .sheet h2 { margin: 0 0 14px; font-size: 17px; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+
+    input, select {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px;
+      font-size: 16px;              /* 16px stops iOS zooming on focus */
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--text);
+    }
+    input[inputmode="decimal"] { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .sheet .buttons { display: flex; gap: 8px; margin-top: 4px; }
+    .sheet .buttons button { flex: 1; }
+
+    /* ---------------------------------------------------------- lock */
+
+    .lock {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 40;
+    }
+    .lock.off { display: none; }
+
+    .lock form { width: 100%; max-width: 300px; text-align: center; }
+    .lock h1 { font-size: 20px; margin: 0 0 4px; }
+    .lock p { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+    .lock input { text-align: center; letter-spacing: 4px; font-size: 20px; margin-bottom: 12px; }
+    .lock button { width: 100%; }
+    .lockError { color: var(--danger); font-size: 14px; min-height: 20px; margin-top: 10px; }
+
+    /* ---------------------------------------------------------- status */
+
+    .status {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 90px;
+      padding: 11px 14px;
+      border-radius: 9px;
+      background: #323236;
+      color: #fff;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity .2s;
+      pointer-events: none;
+      z-index: 30;
+    }
+    .status.on { opacity: 1; }
+    .status.bad { background: var(--danger); }
+
+    .busy { color: var(--muted); font-size: 13px; padding: 4px 0 8px; display: none; }
+    .busy.on { display: block; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="title">Cash Disbursement</div>
+    <div class="months" id="months"></div>
+  </header>
+
+  <main>
+    <div class="busy" id="busy">Working...</div>
+    <div id="list"></div>
+  </main>
+
+  <button class="fab" id="add" title="Add entry">+</button>
+
+  <div class="actions" id="actions">
+    <button id="editSelected">Edit</button>
+    <button class="danger" id="deleteSelected">Delete</button>
+    <button id="clearSelection">Cancel</button>
+  </div>
+
+  <div class="lock" id="lock">
+    <form id="lockForm">
+      <h1>Cash Disbursement</h1>
+      <p>Enter your PIN</p>
+      <input type="password" id="pin" inputmode="numeric" autocomplete="off" required>
+      <button type="submit" class="primary">Unlock</button>
+      <div class="lockError" id="lockError"></div>
+    </form>
+  </div>
+
+  <div class="scrim" id="scrim">
+    <form class="sheet" id="form">
+      <h2 id="formTitle">New entry</h2>
+
+      <label>Date
+        <input type="date" id="fDate" required>
+      </label>
+      <label>Payee
+        <input type="text" id="fPayee" required autocomplete="off">
+      </label>
+      <label>Particular
+        <input type="text" id="fParticular" autocomplete="off">
+      </label>
+      <label>S.I. No.
+        <input type="text" id="fSiNo" autocomplete="off">
+      </label>
+      <label>Amount
+        <input type="text" id="fAmount" inputmode="decimal" required>
+      </label>
+      <label>Type
+        <select id="fType"></select>
+      </label>
+
+      <div class="buttons">
+        <button type="button" id="formCancel">Cancel</button>
+        <button type="submit" class="primary" id="formSave">Add</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // ---------------------------------------------------------------------
+    // Paste the web app URL from Apps Script here:
+    //   Deploy -> Manage deployments -> Active deployment -> URL -> Copy
+    // It ends in /exec. Nothing else in this file needs changing.
+    // ---------------------------------------------------------------------
+    var API_URL = 'https://script.google.com/macros/s/AKfycbzFZTJ3T5vivB17F5V2n4rQgRP1CtqRZ5WlMeLauJJv4Z9e30tbuMNFBOTuAork6jZz/exec';
+
+    var state = {
+      months: [],
+      month: '',
+      entries: [],
+      total: 0,
+      picked: {},        // sheetRow -> true
+      editing: null,     // the entry being edited, or null when adding
+      categories: []
+    };
+
+    // ------------------------------------------------------- peso formatting
+
+    var PESO = '₱';
+
+    function parseAmount(text) {
+      var cleaned = String(text == null ? '' : text)
+        .replace(new RegExp(PESO, 'g'), '')
+        .replace(/,/g, '')
+        .trim();
+      if (cleaned === '') return null;
+      var value = Number(cleaned);
+      return isFinite(value) ? value : null;
+    }
+
+    function money(value) {
+      return PESO + Number(value).toLocaleString('en-US',
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Formats mid-typing without forcing decimals the user has not typed yet.
+    function moneyWhileTyping(text) {
+      var whole = '', fraction = '', afterPoint = false;
+
+      for (var i = 0; i < text.length; i++) {
+        var ch = text.charAt(i);
+        if (ch >= '0' && ch <= '9') {
+          if (!afterPoint) whole += ch;
+          else if (fraction.length < 2) fraction += ch;
+        } else if (ch === '.' && !afterPoint) {
+          afterPoint = true;
+        }
+      }
+
+      if (whole === '' && !afterPoint) return '';
+
+      var digits = whole.replace(/^0+(?=\d)/, '');
+      if (digits === '') digits = '0';
+
+      var grouped = '';
+      for (var j = 0; j < digits.length; j++) {
+        if (j > 0 && (digits.length - j) % 3 === 0) grouped += ',';
+        grouped += digits.charAt(j);
+      }
+
+      return PESO + grouped + (afterPoint ? '.' + fraction : '');
+    }
+
+    // ------------------------------------------------------- server calls
+
+    // The PIN is remembered on the device so it is asked for once, not every
+    // time the app is opened.
+    var PIN_KEY = 'cashDisbursementPin';
+
+    function storedPin() {
+      try { return localStorage.getItem(PIN_KEY) || ''; } catch (e) { return ''; }
+    }
+
+    function rememberPin(pin) {
+      try { localStorage.setItem(PIN_KEY, pin); } catch (e) { /* private mode */ }
+    }
+
+    function forgetPin() {
+      try { localStorage.removeItem(PIN_KEY); } catch (e) { /* private mode */ }
+    }
+
+    /** Every server call carries the PIN; the server rejects a bad one. */
+    function call(name, args) {
+      busy(true);
+
+      // Content-Type text/plain keeps this a "simple" cross-origin request, so
+      // the browser skips the CORS preflight that Apps Script cannot answer.
+      return fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: name, pin: storedPin(), args: args || [] })
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          busy(false);
+          if (data.ok) return data.result;
+
+          // A rejected PIN sends the user back to the lock screen rather than
+          // leaving every action failing for no visible reason.
+          if (/wrong pin/i.test(data.error || '')) {
+            forgetPin();
+            showLock('That PIN was not right.');
+          }
+          throw new Error(data.error || 'The request failed.');
+        })
+        .catch(function (error) {
+          busy(false);
+          throw error;
+        });
+    }
+
+    function busy(on) {
+      document.getElementById('busy').classList.toggle('on', on);
+    }
+
+    var statusTimer = null;
+    function say(message, bad) {
+      var box = document.getElementById('status');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'status';
+        box.className = 'status';
+        document.body.appendChild(box);
+      }
+      box.textContent = message;
+      box.className = 'status on' + (bad ? ' bad' : '');
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(function () { box.className = 'status'; }, bad ? 6000 : 2600);
+    }
+
+    function failed(error) {
+      say(error && error.message ? error.message : String(error), true);
+    }
+
+    // ------------------------------------------------------- rendering
+
+    function renderMonths() {
+      var host = document.getElementById('months');
+      host.innerHTML = '';
+
+      state.months.forEach(function (name) {
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'month' + (name === state.month ? ' on' : '');
+        chip.textContent = name;
+        chip.onclick = function () { openMonth(name); };
+        host.appendChild(chip);
+      });
+
+      var active = host.querySelector('.month.on');
+      if (active && active.scrollIntoView) {
+        active.scrollIntoView({ inline: 'center', block: 'nearest' });
+      }
+    }
+
+    function renderList() {
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      if (!state.entries.length) {
+        host.innerHTML = '<div class="empty">No entries in ' + escapeHtml(state.month) +
+          ' yet.<br>Tap + to add one.</div>';
+        renderActions();
+        return;
+      }
+
+      state.entries.forEach(function (entry) {
+        var row = document.createElement('div');
+        row.className = 'row' + (state.picked[entry.sheetRow] ? ' on' : '');
+
+        row.innerHTML =
+          '<div class="no">' + escapeHtml(entry.no) + '</div>' +
+          '<div class="body">' +
+          '<div class="line1">' +
+          '<span class="payee">' + escapeHtml(entry.payee) + '</span>' +
+          '<span class="amount">' + money(entry.amount) + '</span>' +
+          '</div>' +
+          '<div class="line2">' + escapeHtml(entry.dateDisplay) +
+          (entry.type ? ' &middot; ' + escapeHtml(entry.type) : '') +
+          (entry.siNo ? ' &middot; S.I. ' + escapeHtml(entry.siNo) : '') +
+          '</div>' +
+          '</div>';
+
+        row.onclick = function () { togglePick(entry.sheetRow); };
+        host.appendChild(row);
+      });
+
+      var total = document.createElement('div');
+      total.className = 'total';
+      total.innerHTML = '<span>Total</span><span class="amount">' + money(state.total) + '</span>';
+      host.appendChild(total);
+
+      renderActions();
+    }
+
+    function renderActions() {
+      var picked = pickedRows();
+      document.getElementById('actions').classList.toggle('on', picked.length > 0);
+      document.getElementById('editSelected').disabled = picked.length !== 1;
+      document.getElementById('deleteSelected').textContent =
+        picked.length > 1 ? 'Delete (' + picked.length + ')' : 'Delete';
+    }
+
+    function pickedRows() {
+      return Object.keys(state.picked)
+        .filter(function (row) { return state.picked[row]; })
+        .map(Number);
+    }
+
+    function togglePick(sheetRow) {
+      if (state.picked[sheetRow]) delete state.picked[sheetRow];
+      else state.picked[sheetRow] = true;
+      renderList();
+    }
+
+    function clearPicks() {
+      state.picked = {};
+      renderList();
+    }
+
+    function escapeHtml(text) {
+      return String(text == null ? '' : text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function applyLedger(result) {
+      if (result.months) state.months = result.months;
+      var ledger = result.ledger || result;
+      state.month = ledger.sheetName;
+      state.entries = ledger.entries;
+      state.total = ledger.total;
+      state.picked = {};
+      renderMonths();
+      renderList();
+    }
+
+    // ------------------------------------------------------- actions
+
+    function openMonth(name) {
+      state.month = name;
+      state.picked = {};
+      renderMonths();
+      call('getEntries', [name]).then(applyLedger).catch(failed);
+    }
+
+    function openForm(entry) {
+      state.editing = entry || null;
+
+      document.getElementById('formTitle').textContent = entry ? 'Edit entry' : 'New entry';
+      document.getElementById('formSave').textContent = entry ? 'Save' : 'Add';
+
+      document.getElementById('fDate').value = entry ? entry.dateIso : state.today;
+      document.getElementById('fPayee').value = entry ? entry.payee : '';
+      document.getElementById('fParticular').value = entry ? entry.particular : '';
+      document.getElementById('fSiNo').value = entry ? entry.siNo : '';
+      document.getElementById('fAmount').value = entry ? money(entry.amount) : '';
+
+      var type = document.getElementById('fType');
+      type.value = entry && entry.type ? entry.type : state.categories[0];
+
+      document.getElementById('scrim').classList.add('on');
+    }
+
+    function closeForm() {
+      document.getElementById('scrim').classList.remove('on');
+      state.editing = null;
+    }
+
+    function submitForm(event) {
+      event.preventDefault();
+
+      var amount = parseAmount(document.getElementById('fAmount').value);
+      if (amount === null) { say('The amount is not a number.', true); return; }
+
+      var payee = document.getElementById('fPayee').value.trim();
+      if (!payee) { say('Enter a payee.', true); return; }
+
+      var payload = {
+        date: document.getElementById('fDate').value,
+        payee: payee,
+        particular: document.getElementById('fParticular').value.trim(),
+        siNo: document.getElementById('fSiNo').value.trim(),
+        amount: amount,
+        type: document.getElementById('fType').value
+      };
+
+      var editing = state.editing;
+      var work = editing
+        ? call('updateEntry', [editing.sheetName || state.month, editing.sheetRow, payload])
+        : call('addEntry', [payload]);
+
+      work.then(function (result) {
+        closeForm();
+        applyLedger(result);
+        say(editing ? 'Saved.' : 'Added to ' + result.ledger.sheetName + '.');
+      }).catch(failed);
+    }
+
+    function deletePicked() {
+      var rows = pickedRows();
+      if (!rows.length) return;
+
+      var message = rows.length === 1
+        ? 'Delete this entry?'
+        : 'Delete these ' + rows.length + ' entries?';
+
+      if (!confirm(message + '\n\nThe entries below them move up and are renumbered.')) return;
+
+      call('deleteEntries', [state.month, rows]).then(function (result) {
+        applyLedger(result);
+        say(rows.length === 1 ? 'Deleted.' : 'Deleted ' + rows.length + ' entries.');
+      }).catch(failed);
+    }
+
+    function editPicked() {
+      var rows = pickedRows();
+      if (rows.length !== 1) return;
+
+      var entry = state.entries.filter(function (e) { return e.sheetRow === rows[0]; })[0];
+      if (entry) {
+        entry.sheetName = state.month;
+        openForm(entry);
+      }
+    }
+
+    // ------------------------------------------------------- wiring
+
+    document.getElementById('add').onclick = function () { openForm(null); };
+    document.getElementById('formCancel').onclick = closeForm;
+    document.getElementById('form').onsubmit = submitForm;
+    document.getElementById('deleteSelected').onclick = deletePicked;
+    document.getElementById('editSelected').onclick = editPicked;
+    document.getElementById('clearSelection').onclick = clearPicks;
+
+    document.getElementById('scrim').onclick = function (event) {
+      if (event.target.id === 'scrim') closeForm();
+    };
+
+    // Live peso formatting, keeping the caret in the same place among the digits.
+    document.getElementById('fAmount').addEventListener('input', function () {
+      var box = this;
+      var before = box.value;
+      var caret = box.selectionStart;
+
+      var digitsRight = 0;
+      for (var i = caret; i < before.length; i++) {
+        if (before.charAt(i) >= '0' && before.charAt(i) <= '9') digitsRight++;
+      }
+
+      var after = moneyWhileTyping(before);
+      if (after === before) return;
+      box.value = after;
+
+      var index = after.length, seen = 0;
+      while (index > 0 && seen < digitsRight) {
+        index--;
+        if (after.charAt(index) >= '0' && after.charAt(index) <= '9') seen++;
+      }
+      box.setSelectionRange(index, index);
+    });
+
+    // ------------------------------------------------------- lock screen
+
+    function showLock(message) {
+      document.getElementById('lockError').textContent = message || '';
+      document.getElementById('lock').classList.remove('off');
+      document.getElementById('pin').value = '';
+      setTimeout(function () { document.getElementById('pin').focus(); }, 50);
+    }
+
+    function hideLock() {
+      document.getElementById('lock').classList.add('off');
+    }
+
+    document.getElementById('lockForm').onsubmit = function (event) {
+      event.preventDefault();
+      var pin = document.getElementById('pin').value.trim();
+      if (!pin) return;
+
+      rememberPin(pin);
+      document.getElementById('lockError').textContent = '';
+      start();
+    };
+
+    // ------------------------------------------------------- start
+
+    function start() {
+      if (!storedPin()) { showLock(''); return; }
+
+      call('getBootstrap', []).then(function (data) {
+        state.today = data.today;
+        state.categories = data.categories;
+
+        var type = document.getElementById('fType');
+        type.innerHTML = '';
+        data.categories.forEach(function (name) {
+          var option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          type.appendChild(option);
+        });
+
+        state.months = data.months;
+        state.month = data.selected;
+        applyLedger({ months: data.months, ledger: data.ledger });
+        hideLock();
+      }).catch(function (error) {
+        // showLock has already been raised for a bad PIN by the failure handler.
+        if (!/wrong pin/i.test((error && error.message) || '')) failed(error);
+      });
+    }
+
+    start();
+  </script>
+</body>
+
+</html>
