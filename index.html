@@ -22,41 +22,47 @@
       height: 100%;
       background: var(--bg);
       color: var(--text);
-      font: 15px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif;
+      font: 14px/1.35 -apple-system, "Segoe UI", Roboto, sans-serif;
     }
 
-    body { display: flex; flex-direction: column; }
+    body {
+      display: flex;
+      flex-direction: column;
+      /* dvh follows the address bar as it hides, so the pinned bar and the +
+         button do not drift up and down while the list is scrolled. */
+      height: 100dvh;
+      overflow: hidden;
+    }
 
     /* ---------------------------------------------------------- top bar */
 
     header {
+      flex: 0 0 auto;
       background: var(--card);
       border-bottom: 1px solid var(--line);
-      padding: 10px 12px 0;
-      position: sticky;
-      top: 0;
+      padding: 7px 8px 0;
       z-index: 5;
     }
 
-    .title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+    .title { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
 
     .months {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       overflow-x: auto;
-      padding-bottom: 8px;
+      padding-bottom: 6px;
       scrollbar-width: none;
     }
     .months::-webkit-scrollbar { display: none; }
 
     .month {
       flex: 0 0 auto;
-      padding: 7px 14px;
+      padding: 5px 11px;
       border-radius: 999px;
       border: 1px solid var(--line);
       background: #fff;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 12px;
       white-space: nowrap;
       cursor: pointer;
     }
@@ -64,7 +70,7 @@
 
     /* ---------------------------------------------------------- list */
 
-    main { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 8px 96px; }
+    main { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 6px 6px 84px; }
 
     /* table-layout:fixed with percentage columns is what keeps the whole grid
        inside the screen: cells clip instead of pushing the table wider. */
@@ -80,9 +86,9 @@
     }
 
     .grid th, .grid td {
-      padding: 8px 3px;
-      font-size: 11px;
-      line-height: 1.25;
+      padding: 5px 2px;
+      font-size: 10px;
+      line-height: 1.2;
       text-align: left;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -101,16 +107,16 @@
     }
 
     .grid td.mid, .grid th.mid { text-align: center; }
-    .grid td.num, .grid th.num { text-align: right; padding-right: 6px; }
+    .grid td.num, .grid th.num { text-align: right; padding-right: 4px; }
     .grid td.num { font-variant-numeric: tabular-nums; }
-    .grid td.payee { font-weight: 600; padding-left: 5px; }
+    .grid td.payee { font-weight: 600; padding-left: 4px; }
 
     .grid tbody tr.on td { background: var(--pick); }
     .grid tbody tr:last-child td { border-bottom: 0; }
 
     .grid tfoot td {
       font-weight: 700;
-      font-size: 12px;
+      font-size: 11px;
       background: var(--bg);
       border-top: 2px solid var(--line);
       border-bottom: 0;
@@ -122,17 +128,19 @@
 
     .fab {
       position: fixed;
-      right: 18px;
-      bottom: 22px;
-      width: 58px;
-      height: 58px;
+      right: 14px;
+      /* Sits above the home-indicator strip on gesture-nav phones. */
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      width: 50px;
+      height: 50px;
       border-radius: 50%;
       border: 0;
       background: var(--accent);
       color: #fff;
-      font-size: 30px;
+      font-size: 26px;
       line-height: 1;
       box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+      z-index: 15;
       cursor: pointer;
     }
 
@@ -142,21 +150,22 @@
       right: 0;
       bottom: 0;
       display: none;
-      gap: 8px;
-      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      gap: 6px;
+      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
       background: var(--card);
       border-top: 1px solid var(--line);
+      z-index: 16;
     }
     .actions.on { display: flex; }
     .actions button { flex: 1; }
 
     button, .btn {
-      padding: 12px 14px;
-      border-radius: 9px;
+      padding: 10px 12px;
+      border-radius: 8px;
       border: 1px solid var(--line);
       background: #fff;
       color: var(--text);
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
     }
@@ -234,7 +243,7 @@
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: 90px;
+      bottom: 78px;
       padding: 11px 14px;
       border-radius: 9px;
       background: #323236;
