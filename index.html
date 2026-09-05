@@ -408,6 +408,10 @@
       <label class="hide" id="bStayOtherWrap">Stay (type it)
         <input type="text" id="bStayOther" autocomplete="off"></label>
 
+      <!-- Near the top on purpose: at the foot of the form the remarks sat
+           270px below the fold, so editing a booking never showed them. -->
+      <label>Remarks<textarea id="bRemarks"></textarea></label>
+
       <div class="pair">
         <label>Check in<input type="date" id="bInDate" required></label>
         <label>Time<select id="bInTime"></select></label>
@@ -444,8 +448,6 @@
         <option value="CANCELLED">Cancelled</option>
         <option value="REBOOKED">Rebooked</option>
       </select></label>
-
-      <label>Remarks<textarea id="bRemarks"></textarea></label>
 
       <div class="buttons">
         <button type="button" id="bookCancel">Cancel</button>
@@ -850,20 +852,23 @@
       var table = document.createElement('table');
       table.className = 'grid';
 
-      // Only six of the fourteen fields fit a phone; the pencil opens the rest.
+      // Only seven of the fourteen fields fit a phone; the pencil opens the rest.
+      // Stay sits beside the name, as it does in the desktop app.
       table.innerHTML =
         '<colgroup>' +
-        '<col style="width:7%">' +    // AR
-        '<col style="width:18%">' +   // Name
-        '<col style="width:22%">' +   // Check in, with its time
-        '<col style="width:6%">' +    // Pax
-        '<col style="width:17%">' +   // Total
+        '<col style="width:6%">' +    // AR
+        '<col style="width:12%">' +   // Name - ellipsised, full text on hold
+        '<col style="width:10%">' +   // Stay
+        '<col style="width:19%">' +   // Check in, with its time
+        '<col style="width:7%">' +    // Pax - 6% left its header a hair short
+        '<col style="width:16%">' +   // Total
         '<col style="width:15%">' +   // Balance
-        '<col style="width:15%">' +   // edit / delete
+        '<col style="width:15%">' +   // edit / delete - two 24px buttons
         '</colgroup>' +
         '<thead><tr>' +
         '<th class="mid">AR</th>' +
         '<th>Name</th>' +
+        '<th class="mid">Stay</th>' +
         '<th class="mid">Check in</th>' +
         '<th class="mid">Pax</th>' +
         '<th class="num">Total</th>' +
@@ -883,6 +888,8 @@
           escapeHtml(entry.ar) + '</td>' +
           '<td class="payee" title="' + escapeHtml(entry.name) + '">' +
           escapeHtml(entry.name) + '</td>' +
+          '<td class="mid" title="' + escapeHtml(entry.stay) + '">' +
+          escapeHtml(entry.stay) + '</td>' +
           '<td class="mid">' + escapeHtml(withTime(entry.inDateDisplay, entry.inTime)) + '</td>' +
           '<td class="mid">' + escapeHtml(String(entry.pax || '')) + '</td>' +
           '<td class="num">' + escapeHtml(entry.discounted || money(entry.totalCost)) + '</td>' +
@@ -902,10 +909,12 @@
       table.appendChild(body);
 
       var foot = document.createElement('tfoot');
+      // The total spans Total and Balance: the footer is a point larger than
+      // the rows, and the peso sign pushes it past one column on its own.
       foot.innerHTML =
-        '<tr><td colspan="2"></td><td class="num" colspan="2">Total</td>' +
-        '<td class="num">' + money(book.total) + '</td>' +
-        '<td></td><td></td></tr>';
+        '<tr><td colspan="3"></td><td class="num" colspan="2">Total</td>' +
+        '<td class="num" colspan="2">' + money(book.total) + '</td>' +
+        '<td></td></tr>';
       table.appendChild(foot);
 
       host.appendChild(table);
