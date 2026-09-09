@@ -1367,6 +1367,52 @@
       state.editing = null;
     }
 
+    var DUPLICATE_SI = 'DUPLICATE_SI:';
+
+    /**
+     * The duplicate report the server encodes into its refusal, or null when
+     * the failure was an ordinary one. Searched for rather than matched at the
+     * start, since each transport dresses the message up differently.
+     */
+    function parseDuplicate(error) {
+      var message = (error && error.message) || String(error || '');
+      var at = message.indexOf(DUPLICATE_SI);
+      if (at < 0) return null;
+
+      try {
+        return JSON.parse(message.slice(at + DUPLICATE_SI.length));
+      } catch (ignored) {
+        return null;
+      }
+    }
+
+    /**
+     * Names what is already filed under this number rather than just saying
+     * that something is, since the right answer depends on which entry it
+     * turns out to be.
+     */
+    function confirmDuplicate(duplicate) {
+      var limit = 5;
+      var matches = duplicate.matches || [];
+
+      var lines = matches.slice(0, limit).map(function (m) {
+        return '  ' + m.sheetName + '  No. ' + m.no + '  ' + m.date + '  ' +
+          m.payee + '  ' + m.amount;
+      });
+
+      if (matches.length > limit) {
+        lines.push('  ... and ' + (matches.length - limit) + ' more');
+      }
+
+      var heading = matches.length === 1
+        ? 'S.I. No. ' + duplicate.siNo + ' is already in the ledger:'
+        : 'S.I. No. ' + duplicate.siNo + ' is already in the ledger ' +
+          matches.length + ' times:';
+
+      return confirm(heading + '\n\n' + lines.join('\n') +
+        '\n\nThis looks like a duplicate. Do you wish to continue?');
+    }
+
     function submitForm(event) {
       event.preventDefault();
 
@@ -1386,11 +1432,28 @@
       };
 
       var editing = state.editing;
-      var work = editing
-        ? call('updateEntry', [editing.sheetName || state.month, editing.sheetRow, payload])
-        : call('addEntry', [payload]);
 
-      work.then(function (result) {
+      function send() {
+        return editing
+          ? call('updateEntry', [editing.sheetName || state.month, editing.sheetRow, payload])
+          : call('addEntry', [payload]);
+      }
+
+      send().catch(function (error) {
+        // The server refuses a repeat S.I. number until it is told the typist
+        // meant it. Asking here keeps the check itself on the server, inside
+        // the write lock, while the question still gets asked on the phone.
+        var duplicate = parseDuplicate(error);
+        if (!duplicate) throw error;
+        if (!confirmDuplicate(duplicate)) return null;
+
+        payload.allowDuplicate = true;
+        return send();
+      }).then(function (result) {
+        // Null means the prompt was answered No; the form stays open on the
+        // entry so the number can be corrected.
+        if (!result) return;
+
         closeForm();
         applyLedger(result);
         say(editing ? 'Saved.' : 'Added to ' + result.ledger.sheetName + '.');
