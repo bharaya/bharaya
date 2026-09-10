@@ -1255,6 +1255,54 @@
       book.editing = null;
     }
 
+    var BOOKING_CLASH = 'BOOKING_CLASH:';
+
+    /**
+     * The clash report the server encodes into its refusal, or null when the
+     * failure was an ordinary one.
+     */
+    function parseClash(error) {
+      var message = (error && error.message) || String(error || '');
+      var at = message.indexOf(BOOKING_CLASH);
+      if (at < 0) return null;
+
+      try {
+        return JSON.parse(message.slice(at + BOOKING_CLASH.length));
+      } catch (ignored) {
+        return null;
+      }
+    }
+
+    /**
+     * Sets the stay being saved against the ones it runs into, so the overlap
+     * can be read off directly rather than inferred from a bare warning.
+     */
+    function confirmClash(clash) {
+      var limit = 4;
+      var others = clash.clashes || [];
+
+      var lines = others.slice(0, limit).map(function (c) {
+        return '  AR ' + c.ar + '  ' + c.name + '\n' +
+          '    ' + c.arrives + '  to  ' + c.departs;
+      });
+
+      if (others.length > limit) {
+        lines.push('  ... and ' + (others.length - limit) + ' more');
+      }
+
+      var heading = others.length === 1
+        ? 'This stay overlaps one already booked:'
+        : 'This stay overlaps ' + others.length + ' already booked:';
+
+      return confirm(
+        heading + '\n' + '\n' +
+        lines.join('\n') + '\n' + '\n' +
+        '  Being saved:' + '\n' +
+        '    ' + clash.name + '\n' +
+        '    ' + clash.arrives + '  to  ' + clash.departs + '\n' + '\n' +
+        'The house would be double-booked. Do you wish to continue?');
+    }
+
     function submitBookForm(event) {
       event.preventDefault();
 
@@ -1290,13 +1338,30 @@
       };
 
       var editing = book.editing;
-      var work = editing
-        ? call('updateBooking', [editing.sheetName || book.month, editing.sheetRow, payload])
-        : call('addBooking', [payload]);
+
+      function sendBooking() {
+        return editing
+          ? call('updateBooking', [editing.sheetName || book.month, editing.sheetRow, payload])
+          : call('addBooking', [payload]);
+      }
 
       var status = document.getElementById('bStatus').value;
 
-      work.then(function (result) {
+      sendBooking().catch(function (error) {
+        // The server refuses an overlapping stay until it is told the dates
+        // were meant. Asking here keeps the check on the server, inside the
+        // write lock, while the question still gets asked on the phone.
+        var clash = parseClash(error);
+        if (!clash) throw error;
+        if (!confirmClash(clash)) return null;
+
+        payload.allowClash = true;
+        return sendBooking();
+      }).then(function (result) {
+        // Null means the prompt was answered No; the form stays open on the
+        // booking so the dates can be corrected.
+        if (!result) return;
+
         // The marker lives in the remarks, so it is applied after the row is
         // written rather than being part of the same payload.
         var target = (result.ledger.entries || []).filter(function (e) {
