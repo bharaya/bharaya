@@ -1084,6 +1084,8 @@
       book.total = ledger.total;
       renderMonths();
       renderList();
+      // Gross and Net on the Disbursement view come from the bookings.
+      loadGross();
     }
 
     // ------------------------------------------------------- view switch
