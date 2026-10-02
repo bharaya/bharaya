@@ -798,6 +798,8 @@
       state.entries = ledger.entries;
       state.total = ledger.total;
       state.gross = null;
+      // The Bookings view shows this month's spending too; keep it in step.
+      if (shortMonth(book.month) === state.month) book.spent = ledger.total;
       renderMonths();
       renderList();
       loadGross();
@@ -911,10 +913,21 @@
       var foot = document.createElement('tfoot');
       // The total spans Total and Balance: the footer is a point larger than
       // the rows, and the peso sign pushes it past one column on its own.
-      foot.innerHTML =
-        '<tr><td colspan="3"></td><td class="num" colspan="2">Total</td>' +
-        '<td class="num" colspan="2">' + money(book.total) + '</td>' +
-        '<td></td></tr>';
+      function line(label, amount, red) {
+        return '<tr><td></td><td class="num" colspan="4">' + label + '</td>' +
+          '<td class="num" colspan="2"' + (red ? ' style="color:var(--danger)"' : '') + '>' +
+          money(amount) + '</td><td></td></tr>';
+      }
+
+      var lines = line('Total', book.total, false);
+
+      // What the same month spent, and what was left - as on the Disbursement view.
+      if (book.spent !== null && book.spent !== undefined) {
+        var left = book.total - book.spent;
+        lines += line('Disbursement', book.spent, false) + line('Net', left, left < 0);
+      }
+
+      foot.innerHTML = lines;
       table.appendChild(foot);
 
       host.appendChild(table);
@@ -1082,6 +1095,7 @@
       book.month = ledger.sheetName;
       book.entries = ledger.entries;
       book.total = ledger.total;
+      book.spent = ledger.spent;
       renderMonths();
       renderList();
       // Gross and Net on the Disbursement view come from the bookings.
