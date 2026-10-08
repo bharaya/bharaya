@@ -584,50 +584,90 @@
 
     // ------------------------------------------------------- server calls
 
-    // The PIN is remembered on the device so it is asked for once, not every
-    // time the app is opened.
-    var PIN_KEY = 'cashDisbursementPin';
+    // What the device keeps is a key the server hands out once the PIN has been
+    // typed, not the PIN itself, so it is asked for once and not every time the
+    // app is opened. A device holding a key also carries on working when wrong
+    // PINs typed somewhere else have locked signing in.
+    var KEY_KEY = 'cashDisbursementKey';
+    var PIN_KEY = 'cashDisbursementPin';   // where older versions kept the PIN
 
-    function storedPin() {
+    // Held here too, so the app still works for the visit when the browser
+    // refuses storage, as private mode does.
+    var deviceKey = '';
+
+    function storedKey() {
+      try { return localStorage.getItem(KEY_KEY) || deviceKey; } catch (e) { return deviceKey; }
+    }
+
+    function rememberKey(key) {
+      deviceKey = key;
+      try {
+        localStorage.setItem(KEY_KEY, key);
+        localStorage.removeItem(PIN_KEY);
+      } catch (e) { /* private mode */ }
+    }
+
+    function forgetKey() {
+      deviceKey = '';
+      try { localStorage.removeItem(KEY_KEY); } catch (e) { /* private mode */ }
+    }
+
+    function oldPin() {
       try { return localStorage.getItem(PIN_KEY) || ''; } catch (e) { return ''; }
     }
 
-    function rememberPin(pin) {
-      try { localStorage.setItem(PIN_KEY, pin); } catch (e) { /* private mode */ }
-    }
-
-    function forgetPin() {
+    function forgetOldPin() {
       try { localStorage.removeItem(PIN_KEY); } catch (e) { /* private mode */ }
     }
 
-    /** Every server call carries the PIN; the server rejects a bad one. */
-    function call(name, args, quiet) {
-      if (!quiet) busy(true);
+    // How the server words a key it no longer knows: the PIN was changed, or
+    // the devices were cleared from the editor.
+    var SIGNED_OUT = /signed out:/i;
 
+    function post(body) {
       // Content-Type text/plain keeps this a "simple" cross-origin request, so
       // the browser skips the CORS preflight that Apps Script cannot answer.
       return fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: name, pin: storedPin(), args: args || [] })
+        body: JSON.stringify(body)
       })
         .then(function (response) { return response.json(); })
         .then(function (data) {
-          if (!quiet) busy(false);
           if (data.ok) return data.result;
-
-          // A rejected PIN sends the user back to the lock screen rather than
-          // leaving every action failing for no visible reason.
-          if (/wrong pin/i.test(data.error || '')) {
-            forgetPin();
-            showLock('That PIN was not right.');
-          }
           throw new Error(data.error || 'The request failed.');
+        });
+    }
+
+    /** Every server call carries the device key; the server rejects a bad one. */
+    function call(name, args, quiet) {
+      if (!quiet) busy(true);
+
+      return post({ action: name, key: storedKey(), args: args || [] })
+        .then(function (result) {
+          if (!quiet) busy(false);
+          return result;
         })
         .catch(function (error) {
           if (!quiet) busy(false);
+
+          // A key the server has dropped sends the user back to the lock screen
+          // rather than leaving every action failing for no visible reason.
+          if (SIGNED_OUT.test((error && error.message) || '')) {
+            forgetKey();
+            showLock('Enter your PIN again.');
+          }
           throw error;
         });
+    }
+
+    /** Trades the PIN for this device's key. The PIN itself is never kept. */
+    function signIn(pin) {
+      busy(true);
+
+      return post({ action: 'signIn', pin: pin })
+        .then(function (key) { busy(false); rememberKey(key); })
+        .catch(function (error) { busy(false); throw error; });
     }
 
     function busy(on) {
@@ -1698,15 +1738,38 @@
       var pin = document.getElementById('pin').value.trim();
       if (!pin) return;
 
-      rememberPin(pin);
       document.getElementById('lockError').textContent = '';
-      start();
+      signIn(pin).then(start).catch(refused);
     };
+
+    /**
+     * Back to the lock screen in the server's own words - "Wrong PIN. 3 attempts
+     * left." or how long signing in is locked for - since a lockout refuses the
+     * right PIN as well and must not be passed off as a wrong one.
+     */
+    function refused(error) {
+      var reason = String((error && error.message) || 'Could not sign in.')
+        .replace(/^(Exception|Error):\s*/i, '');
+      showLock(reason);
+      return reason;
+    }
 
     // ------------------------------------------------------- start
 
     function start() {
-      if (!storedPin()) { showLock(''); return; }
+      if (!storedKey()) {
+        // A device set up before keys existed still holds the PIN. It is traded
+        // in here, once, so nobody has to type it again after the update.
+        var pin = oldPin();
+        if (!pin) { showLock(''); return; }
+
+        signIn(pin).then(start).catch(function (error) {
+          // Kept through a lockout or a dropped connection, to try again on
+          // the next visit; only a PIN the server says is wrong is thrown away.
+          if (/^wrong pin/i.test(refused(error))) forgetOldPin();
+        });
+        return;
+      }
 
       call('getBootstrap', []).then(function (data) {
         state.today = data.today;
@@ -1726,8 +1789,8 @@
         applyLedger({ months: data.months, ledger: data.ledger });
         hideLock();
       }).catch(function (error) {
-        // showLock has already been raised for a bad PIN by the failure handler.
-        if (!/wrong pin/i.test((error && error.message) || '')) failed(error);
+        // showLock has already been raised for a signed-out device by call().
+        if (!SIGNED_OUT.test((error && error.message) || '')) failed(error);
       });
     }
 
