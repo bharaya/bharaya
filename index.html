@@ -220,6 +220,23 @@
     .reply .buttons button { flex: 1; }
     #replyText { min-height: 280px; }
 
+    /* A newer page is on GitHub. Left of the + button, above everything but forms. */
+    .updatebar {
+      position: fixed;
+      left: 12px;
+      right: 76px;
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      height: 50px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--text);
+      color: #fff;
+      font-size: 15px;
+      z-index: 16;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+    }
+    .updatebar.hide { display: none; }
+
     /* ---------------------------------------------------------- quote */
 
     .qclash { color: var(--danger); font-weight: 600; font-size: 13px; min-height: 18px; margin: -4px 0 10px; }
@@ -479,6 +496,8 @@
   </main>
 
   <div class="working" id="working"><div class="spinner"></div></div>
+
+  <button class="updatebar hide" id="updateBar" type="button">Update</button>
 
   <button class="fab" id="add" title="Add entry">+</button>
 
@@ -2453,6 +2472,43 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function () { /* not installable */ });
     }
+
+    // ------------------------------------------------------- update check
+    //
+    // Android brings the installed app back from memory as it was, so a page
+    // opened before an upload stays old. On coming back, GitHub's version tag
+    // for the page is compared with the one it had at start; a change offers
+    // Update rather than reloading, so a half-typed quote is never lost.
+
+    var pageTag = null;
+    var lastTagCheck = 0;
+
+    function readPageTag() {
+      return fetch(location.href.split('#')[0], { method: 'HEAD', cache: 'no-store' })
+        .then(function (response) {
+          return response.ok
+            ? response.headers.get('ETag') || response.headers.get('Last-Modified')
+            : null;
+        })
+        .catch(function () { return null; });   // offline: try again next time
+    }
+
+    function checkForUpdate() {
+      if (Date.now() - lastTagCheck < 30000) return;
+      lastTagCheck = Date.now();
+
+      readPageTag().then(function (tag) {
+        if (!tag) return;
+        if (pageTag === null) { pageTag = tag; return; }
+        if (tag !== pageTag) document.getElementById('updateBar').classList.remove('hide');
+      });
+    }
+
+    document.getElementById('updateBar').onclick = function () { location.reload(); };
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') checkForUpdate();
+    });
+    checkForUpdate();
   </script>
 </body>
 
