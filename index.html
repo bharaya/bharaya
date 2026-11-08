@@ -244,7 +244,12 @@
     .qchecks { display: flex; gap: 28px; margin-bottom: 12px; }
     label.check { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--text); }
     label.check input { width: 20px; height: 20px; margin: 0; padding: 0; }
-    #qClear { width: 100%; }
+    .qsaved { display: flex; gap: 8px; align-items: flex-end; }
+    .qsaved label { flex: 1; }
+    #qRemove { margin-bottom: 12px; padding: 12px; }
+    .qrow { display: flex; gap: 8px; margin-bottom: 14px; }
+    .qrow button { flex: 1; }
+    #qPaid { width: 100%; padding: 13px; }
 
     /* ------------------------------------------- summary breakdown */
 
@@ -449,6 +454,10 @@
     <div id="list"></div>
     <div id="quoteView" class="hide">
       <div class="reply">
+        <div class="qsaved">
+          <label>Saved<select id="qSaved"></select></label>
+          <button type="button" id="qRemove">Remove</button>
+        </div>
         <label>Name<input type="text" id="qName" autocomplete="off"></label>
         <label>Stay<select id="qStay"></select></label>
         <label class="hide" id="qCustomWrap">Custom stay
@@ -473,8 +482,16 @@
           <label class="check"><input type="checkbox" id="qHoliday">Holiday</label>
           <label class="check"><input type="checkbox" id="qPeak">Peak</label>
         </div>
-        <label>DP<input type="text" id="qDp" inputmode="decimal"></label>
-        <button type="button" id="qClear">Clear</button>
+        <div class="qrow">
+          <button type="button" id="qSave">Save</button>
+          <button type="button" id="qClear">Clear</button>
+        </div>
+        <div class="pair">
+          <label>DP<input type="text" id="qDp" inputmode="decimal"></label>
+          <label>Mode<select id="qMode"></select></label>
+        </div>
+        <label>DP date<input type="date" id="qDpDate"></label>
+        <button type="button" class="primary" id="qPaid">Paid</button>
       </div>
 
       <div class="reply">
@@ -1987,7 +2004,8 @@
     var quote = {
       stays: undefined, bpi: '', gcash: '',
       custom: false, customHours: 22, lastRated: QUOTE_STAYS[0],
-      minutes: 9 * 60, timeReadable: true
+      minutes: 9 * 60, timeReadable: true,
+      quotes: [], pickedId: '', paid: false
     };
 
     function qEl(id) { return document.getElementById(id); }
@@ -2127,7 +2145,10 @@
       qEl('qPax').value = String(QUOTE_BASE_PAX);
       qEl('qHoliday').checked = false;
       qEl('qPeak').checked = false;
-      qEl('qDp').value = '';
+      qEl('qSaved').value = '';
+      quote.pickedId = '';
+      qEl('qRemove').disabled = true;
+      qResetPayment();
       qStayChanged();
     }
 
@@ -2138,11 +2159,213 @@
         quote.stays = data.stays;
         quote.bpi = data.bpi;
         quote.gcash = data.gcash;
+        quote.quotes = data.quotes || [];
+        qListQuotes(quote.pickedId);
         qRebuild();
       }).catch(function () {
         quote.stays = null;
         qRebuild();
       });
+    }
+
+    // ------------------------------------------------- saved quotes and Paid
+    //
+    // As on the PC: the saved list is shared through the Quotes tab, and Paid adds
+    // the booking through the same addBooking the Bookings view uses. The receipt
+    // stays on the PC: its background carries the signature, and this page is public.
+
+    function qPicked() {
+      var id = quote.pickedId;
+      return quote.quotes.filter(function (q) { return q.id === id; })[0] || null;
+    }
+
+    function qListQuotes(selectId) {
+      var box = qEl('qSaved');
+      box.innerHTML = '';
+      var none = document.createElement('option');
+      none.value = '';
+      none.textContent = '';
+      box.appendChild(none);
+
+      quote.quotes.forEach(function (q) {
+        var option = document.createElement('option');
+        option.value = q.id;
+        var when = qDateFromIso(q.checkIn.slice(0, 10));
+        option.textContent = q.name + ' - ' + Q_MONTHS[when.getMonth()].slice(0, 3) + ' ' + when.getDate();
+        box.appendChild(option);
+      });
+
+      var keep = quote.quotes.some(function (q) { return q.id === selectId; });
+      quote.pickedId = keep ? selectId : '';
+      box.value = quote.pickedId;
+      qEl('qRemove').disabled = !quote.pickedId;
+    }
+
+    /** A different name is a different guest: Save then adds rather than replaces. */
+    function qReleaseIfRenamed() {
+      var picked = qPicked();
+      if (!picked) return;
+      if (picked.name.trim().toLowerCase() === qEl('qName').value.trim().toLowerCase()) return;
+      quote.pickedId = '';
+      qEl('qSaved').value = '';
+      qEl('qRemove').disabled = true;
+    }
+
+    function qLoadSaved(q) {
+      var rated = q.hours === null ? QUOTE_STAYS.filter(function (s) {
+        return s.name.toLowerCase() === String(q.stay).trim().toLowerCase();
+      })[0] : null;
+
+      qEl('qName').value = q.name;
+      // The stay before the time: changing the stay resets it to that stay's usual one.
+      qEl('qStay').value = rated ? rated.name : QUOTE_CUSTOM;
+      qEl('qStayName').value = rated ? '' : q.stay;
+      qStayChanged();
+      if (!rated) quote.customHours = q.hours || quote.customHours;
+
+      qEl('qDate').value = q.checkIn.slice(0, 10);
+      var minutes = qParseClock(q.checkIn.slice(11));
+      qEl('qTime').value = qHour(qAddMinutes(qToday(), minutes === null ? 9 * 60 : minutes));
+      qReadTime();
+      qEl('qPax').value = String(q.pax);
+      qEl('qHoliday').checked = !!q.holiday;
+      qEl('qPeak').checked = !!q.peak;
+      qResetPayment();
+      qRecalculate();
+
+      // Last: everything above recalculates it, and a typed-over fee must survive.
+      qEl('qFee').value = moneyWhileTyping(String(q.fee));
+      qRebuild();
+    }
+
+    /** The form as a quote, or null with the reason said, if it is not one yet. */
+    function qReadQuote() {
+      var name = qEl('qName').value.trim();
+      if (!name) { say('Enter a name.', true); return null; }
+      if (quote.custom && !qEl('qStayName').value.trim()) { say('Enter a stay.', true); return null; }
+      if (quote.custom && !(quote.customHours > 0)) { say('Checkout is before check-in.', true); return null; }
+      if (!quote.timeReadable) { say('Enter a time.', true); return null; }
+
+      var fee = qMoney('qFee');
+      if (fee <= 0) { say('Enter a fee.', true); return null; }
+
+      var checkIn = qCheckIn();
+      return {
+        id: '',
+        name: name,
+        checkIn: qIso(checkIn) + 'T' + qPad(checkIn.getHours()) + ':' + qPad(checkIn.getMinutes()),
+        pax: qPax(),
+        holiday: qEl('qHoliday').checked,
+        fee: fee,
+        stay: qStay().name,
+        peak: qEl('qPeak').checked,
+        hours: quote.custom ? quote.customHours : null
+      };
+    }
+
+    /** Asks before saving dates that overlap a booking; the clash can be deliberate. */
+    function qConfirmFree() {
+      if (!quote.stays) return true;
+      var checkIn = qCheckIn();
+      var clashes = qClashes(quote.stays, checkIn, qCheckOut(qStay(), checkIn));
+      return !clashes.length || confirm(qClashLine(clashes) + '\n\nThe house would be double-booked. Do you wish to continue?');
+    }
+
+    function qSave() {
+      var q = qReadQuote();
+      if (!q) return;
+      q.id = quote.pickedId;      // a picked quote is updated, not saved twice
+      if (!qConfirmFree()) { say('Not saved - the dates clash.', true); return; }
+
+      call('saveQuote', [q]).then(function (result) {
+        quote.quotes = result.quotes;
+        qListQuotes(result.id);
+        say('Saved');
+      }).catch(failed);
+    }
+
+    function qRemove() {
+      var id = quote.pickedId;
+      if (!id) return;
+      call('removeQuote', [id]).then(function (quotes) {
+        quote.quotes = quotes;
+        qListQuotes('');
+        say('Removed');
+      }).catch(failed);
+    }
+
+    /** Clears the payment; moving on from a paid quote reads the book again. */
+    function qResetPayment() {
+      qEl('qDp').value = '';
+      qEl('qMode').value = '';
+      qEl('qDpDate').value = qIso(qToday());
+
+      if (!quote.paid) return;
+      quote.paid = false;
+      qEl('qPaid').disabled = false;
+      loadQuote();
+    }
+
+    /** "9:00 PM", the bookings sheet's own way of writing a time. */
+    function qSheetTime(date) {
+      var hours = date.getHours();
+      return (hours % 12 || 12) + ':' + qPad(date.getMinutes()) + ' ' + (hours < 12 ? 'AM' : 'PM');
+    }
+
+    function qPaid() {
+      var q = qReadQuote();
+      if (!q) return;
+
+      var dp = qMoney('qDp');
+      if (dp <= 0) { say('Enter the DP.', true); return; }
+      if (dp > q.fee) { say('DP is over the fee.', true); return; }
+      var mode = qEl('qMode').value;
+      if (!mode) { say('Pick a mode.', true); return; }
+      var dpDate = qEl('qDpDate').value || qIso(qToday());
+
+      var stay = qStay();
+      var checkIn = qCheckIn();
+      var checkOut = qCheckOut(stay, checkIn);
+      var payload = {
+        ar: '', name: q.name, stay: stay.name, remarks: '', pax: String(q.pax),
+        inDate: qIso(checkIn), inTime: qSheetTime(checkIn),
+        outDate: qIso(checkOut), outTime: qSheetTime(checkOut),
+        totalCost: q.fee, dpDate: dpDate, dp: dp, dpMode: mode, fp: '', fpMode: ''
+      };
+      var savedId = quote.pickedId;
+
+      call('addBooking', [payload]).catch(function (error) {
+        // The same server-side clash guard as the Bookings form, asked the same way.
+        var clash = parseClash(error);
+        if (!clash) throw error;
+        if (!confirmClash(clash)) return null;
+        payload.allowClash = true;
+        return call('addBooking', [payload]);
+      }).then(function (result) {
+        if (!result) { say('Not added - the dates clash.', true); return; }
+
+        // Stays off until Clear or another quote, so it cannot be added twice.
+        quote.paid = true;
+        qEl('qPaid').disabled = true;
+        book.loaded = false;      // the Bookings view reads the new row next visit
+
+        var entry = ((result.ledger && result.ledger.entries) || []).filter(function (e) {
+          return String(e.ar) === String(result.ar);
+        })[0];
+        var added = (entry ? 'Added as No. ' + entry.no + ', AR ' : 'Added, AR ') + result.ar;
+        say(added);
+        qEl('qMsgConfirm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+
+        // Separate from the add: the booking is in, so a failure here must not
+        // read as "not added" and invite adding it twice.
+        if (savedId) {
+          call('removeQuote', [savedId], true).then(function (quotes) {
+            quote.quotes = quotes;
+            qListQuotes('');
+          }).catch(function () { say(added + ' - still in Saved', true); });
+        }
+      }).catch(failed);
     }
 
     function initQuote() {
@@ -2160,7 +2383,7 @@
 
       stay.addEventListener('change', qStayChanged);
       qEl('qStayName').addEventListener('input', qRebuild);
-      qEl('qName').addEventListener('input', qRebuild);
+      qEl('qName').addEventListener('input', function () { qReleaseIfRenamed(); qRebuild(); });
       qEl('qDate').addEventListener('change', qRecalculate);
       qEl('qTime').addEventListener('input', function () { qReadTime(); qRecalculate(); });
       // Tidies what was typed, or puts back the last good time.
@@ -2178,6 +2401,25 @@
       qEl('qCopyQuote').onclick = function () { copyText(qEl('qMsgQuote').textContent, 'Quote'); };
       qEl('qCopyDp').onclick = function () { copyText(qEl('qMsgDp').textContent, 'DP'); };
       qEl('qCopyConfirm').onclick = function () { copyText(qEl('qMsgConfirm').textContent, 'Confirm'); };
+
+      var mode = qEl('qMode');
+      ['', 'GCash', 'BPI', 'Cash'].forEach(function (name) {
+        var option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        mode.appendChild(option);
+      });
+
+      qEl('qSaved').addEventListener('change', function () {
+        quote.pickedId = qEl('qSaved').value;
+        qEl('qRemove').disabled = !quote.pickedId;
+        var picked = qPicked();
+        if (picked) qLoadSaved(picked);
+      });
+      qEl('qRemove').onclick = qRemove;
+      qEl('qSave').onclick = qSave;
+      qEl('qPaid').onclick = qPaid;
+
 
       clearQuote();
     }
