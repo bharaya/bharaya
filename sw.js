@@ -3,7 +3,7 @@
 // next open; the copy kept here is only for opening with no signal. Calls to
 // the ledger go to Google, another site, and are never touched or kept.
 
-const CACHE = 'balai-haraya-v2';
+const CACHE = 'balai-haraya-v3';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'
