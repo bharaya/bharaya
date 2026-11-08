@@ -244,6 +244,16 @@
     .qchecks { display: flex; gap: 28px; margin-bottom: 12px; }
     label.check { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--text); }
     label.check input { width: 20px; height: 20px; margin: 0; padding: 0; }
+    /* Editable, and as tall as the message, so it reads like the others. */
+    textarea.qmsg {
+      display: block;
+      margin: 0 0 10px;
+      min-height: 0;
+      font-size: 14px;
+      line-height: 1.4;
+      resize: none;
+      overflow: hidden;
+    }
     .qsaved { display: flex; gap: 8px; align-items: flex-end; }
     .qsaved label { flex: 1; }
     #qRemove { margin-bottom: 12px; padding: 12px; }
@@ -496,7 +506,7 @@
 
       <div class="reply">
         <h3>Quote</h3>
-        <div class="text" id="qMsgQuote"></div>
+        <textarea class="qmsg" id="qMsgQuote" spellcheck="false"></textarea>
         <div class="buttons"><button type="button" class="primary" id="qCopyQuote">Copy</button></div>
       </div>
       <div class="reply">
@@ -506,7 +516,7 @@
       </div>
       <div class="reply">
         <h3>Confirm</h3>
-        <div class="text" id="qMsgConfirm"></div>
+        <textarea class="qmsg" id="qMsgConfirm" spellcheck="false"></textarea>
         <div class="buttons"><button type="button" class="primary" id="qCopyConfirm">Copy</button></div>
       </div>
     </div>
@@ -2098,6 +2108,16 @@
       if (document.activeElement !== qEl('qOutTime')) qEl('qOutTime').value = qHour(checkOut);
     }
 
+    /** Grows each message box to its text. Nothing to measure while the view is hidden. */
+    function qFitMessages() {
+      ['qMsgQuote', 'qMsgConfirm'].forEach(function (id) {
+        var box = qEl(id);
+        if (!box.offsetParent) return;
+        box.style.height = 'auto';
+        box.style.height = (box.scrollHeight + 2) + 'px';
+      });
+    }
+
     function qRecalculate() {
       if (!quote.custom) {
         var fee = qFeeFor(qStay(), qCheckIn(), qPax(), qEl('qHoliday').checked, qEl('qPeak').checked);
@@ -2117,9 +2137,10 @@
       var dp = qMoney('qDp');
 
       qEl('qOut').textContent = qStamp(qCheckOut(stay, checkIn));
-      qEl('qMsgQuote').textContent = qMessage(stay, name, checkIn, pax, fee);
+      qEl('qMsgQuote').value = qMessage(stay, name, checkIn, pax, fee);
       qEl('qMsgDp').textContent = qPayment(quote.bpi, quote.gcash);
-      qEl('qMsgConfirm').textContent = qConfirmation(stay, name, checkIn, pax, fee - dp);
+      qEl('qMsgConfirm').value = qConfirmation(stay, name, checkIn, pax, fee - dp);
+      qFitMessages();
 
       if (quote.stays === null) {
         qEl('qClash').textContent = 'Could not check bookings';
@@ -2398,9 +2419,11 @@
       qEl('qDp').addEventListener('input', qRebuild);
       qEl('qClear').onclick = clearQuote;
 
-      qEl('qCopyQuote').onclick = function () { copyText(qEl('qMsgQuote').textContent, 'Quote'); };
+      qEl('qCopyQuote').onclick = function () { copyText(qEl('qMsgQuote').value, 'Quote'); };
+      qEl('qMsgQuote').addEventListener('input', qFitMessages);
+      qEl('qMsgConfirm').addEventListener('input', qFitMessages);
       qEl('qCopyDp').onclick = function () { copyText(qEl('qMsgDp').textContent, 'DP'); };
-      qEl('qCopyConfirm').onclick = function () { copyText(qEl('qMsgConfirm').textContent, 'Confirm'); };
+      qEl('qCopyConfirm').onclick = function () { copyText(qEl('qMsgConfirm').value, 'Confirm'); };
 
       var mode = qEl('qMode');
       ['', 'GCash', 'BPI', 'Cash'].forEach(function (name) {
