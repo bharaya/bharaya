@@ -4,6 +4,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Balai Haraya</title>
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Balai Haraya">
   <style>
     :root {
       --bg: #f5f5f7;
@@ -69,6 +76,7 @@
       cursor: pointer;
     }
     .view.on { background: var(--text); border-color: var(--text); color: #fff; }
+    .views .view { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     textarea {
       width: 100%;
@@ -188,6 +196,27 @@
     }
 
     .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+
+    /* ---------------------------------------------------------- replies */
+
+    .reply {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .reply h3 { margin: 0 0 6px; font-size: 14px; }
+    .reply .text {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 13px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .reply .buttons { display: flex; gap: 8px; }
+    .reply .buttons button { flex: 1; }
+    #replyText { min-height: 280px; }
 
     /* ------------------------------------------- summary breakdown */
 
@@ -382,6 +411,7 @@
       <button class="view on" id="viewDisb">Disbursement</button>
       <button class="view" id="viewBook">Bookings</button>
       <button class="view" id="viewSum">Summary</button>
+      <button class="view" id="viewReply">Replies</button>
     </div>
     <div class="months" id="months"></div>
   </header>
@@ -452,6 +482,17 @@
       <div class="buttons">
         <button type="button" id="bookCancel">Cancel</button>
         <button type="submit" class="primary" id="bookSave">Add</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="scrim" id="replyScrim">
+    <form class="sheet" id="replyForm">
+      <h2 id="replyTitle">Reply</h2>
+      <label>Text<textarea id="replyText"></textarea></label>
+      <div class="buttons">
+        <button type="button" id="replyCancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
       </div>
     </form>
   </div>
@@ -722,6 +763,7 @@
     function renderList() {
       if (view === 'book') return renderBookings();
       if (view === 'sum') return renderSummary();
+      if (view === 'reply') return renderReplies();
 
       var host = document.getElementById('list');
       host.innerHTML = '';
@@ -1198,11 +1240,25 @@
       document.getElementById('viewDisb').classList.toggle('on', next === 'disb');
       document.getElementById('viewBook').classList.toggle('on', next === 'book');
       document.getElementById('viewSum').classList.toggle('on', next === 'sum');
+      document.getElementById('viewReply').classList.toggle('on', next === 'reply');
 
       // The summary spans every month, so it has no month strip and nothing
       // to add.
-      document.getElementById('months').style.display = next === 'sum' ? 'none' : '';
-      document.getElementById('add').style.display = next === 'sum' ? 'none' : '';
+      // Neither the summary nor the replies have months or anything to add.
+      var plain = next === 'sum' || next === 'reply';
+      document.getElementById('months').style.display = plain ? 'none' : '';
+      document.getElementById('add').style.display = plain ? 'none' : '';
+
+      if (next === 'reply') {
+        if (replies.loaded) { renderList(); return; }
+        document.getElementById('list').innerHTML = '';
+        call('getReplies', []).then(function (list) {
+          replies.list = list;
+          replies.loaded = true;
+          if (view === 'reply') renderList();
+        }).catch(failed);
+        return;
+      }
 
       if (next === 'sum') {
         if (summary.loaded) { renderList(); return; }
@@ -1600,6 +1656,88 @@
       });
     }
 
+    // ------------------------------------------------------- replies
+
+    var replies = { list: [], loaded: false, editing: '' };
+
+    function renderReplies() {
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      replies.list.forEach(function (reply) {
+        var card = document.createElement('div');
+        card.className = 'reply';
+        card.innerHTML =
+          '<h3>' + escapeHtml(reply.name) + '</h3>' +
+          '<div class="text">' + escapeHtml(reply.text) + '</div>' +
+          '<div class="buttons">' +
+          '<button type="button" class="primary">Copy</button>' +
+          '<button type="button">Edit</button>' +
+          '</div>';
+
+        var buttons = card.querySelectorAll('button');
+        buttons[0].onclick = function () { copyText(reply.text, reply.name); };
+        buttons[1].onclick = function () { openReplyForm(reply); };
+        host.appendChild(card);
+      });
+    }
+
+    /**
+     * The old select-and-copy first: it runs inside the tap, and still works
+     * where the page sits in a frame that the clipboard API is not allowed in.
+     */
+    function copyText(text, name) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '0';
+      area.style.left = '0';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.focus();
+      area.select();
+      area.setSelectionRange(0, text.length);
+
+      var copied = false;
+      try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+      document.body.removeChild(area);
+
+      if (copied) { say(name + ' copied'); return; }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          function () { say(name + ' copied'); },
+          function () { say('Copy blocked', true); });
+      } else {
+        say('Copy blocked', true);
+      }
+    }
+
+    function openReplyForm(reply) {
+      replies.editing = reply.name;
+      document.getElementById('replyTitle').textContent = reply.name;
+      document.getElementById('replyText').value = reply.text;
+      document.getElementById('replyScrim').classList.add('on');
+    }
+
+    function closeReplyForm() {
+      document.getElementById('replyScrim').classList.remove('on');
+      replies.editing = '';
+    }
+
+    function submitReplyForm(event) {
+      event.preventDefault();
+      var text = document.getElementById('replyText').value;
+
+      call('saveReply', [replies.editing, text]).then(function (list) {
+        replies.list = list;
+        closeReplyForm();
+        renderList();
+        say('Saved');
+      }).catch(failed);
+    }
+
     // ------------------------------------------------------- wiring
 
     document.getElementById('add').onclick = function () {
@@ -1610,6 +1748,12 @@
     document.getElementById('viewDisb').onclick = function () { switchView('disb'); };
     document.getElementById('viewBook').onclick = function () { switchView('book'); };
     document.getElementById('viewSum').onclick = function () { switchView('sum'); };
+    document.getElementById('viewReply').onclick = function () { switchView('reply'); };
+    document.getElementById('replyCancel').onclick = closeReplyForm;
+    document.getElementById('replyForm').onsubmit = submitReplyForm;
+    document.getElementById('replyScrim').onclick = function (event) {
+      if (event.target.id === 'replyScrim') closeReplyForm();
+    };
     document.getElementById('bookCancel').onclick = closeBookForm;
     document.getElementById('bookForm').onsubmit = submitBookForm;
     document.getElementById('bookScrim').onclick = function (event) {
@@ -1795,6 +1939,11 @@
     }
 
     start();
+
+    // What lets the phone offer "Install app". A failure only means no install.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* not installable */ });
+    }
   </script>
 </body>
 
