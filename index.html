@@ -218,6 +218,13 @@
     }
     .reply .buttons { display: flex; gap: 8px; }
     .reply .buttons button { flex: 1; }
+    .reply img.rimg {
+      display: block;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
     #replyText { min-height: 280px; }
 
     /* A newer page is on GitHub. Left of the + button, above everything but forms. */
@@ -2461,18 +2468,110 @@
         card.innerHTML =
           '<h3>' + escapeHtml(reply.name) + '</h3>' +
           '<div class="text">' + escapeHtml(reply.text) + '</div>' +
+          (reply.picture ? '<img class="rimg" alt="" style="display:none">' : '') +
           '<div class="buttons">' +
           '<button type="button" class="primary">Copy</button>' +
-          '<button type="button">Edit</button>' +
+          (reply.picture
+            ? '<button type="button" class="share hide">Share</button><button type="button" class="pick">Pick</button>'
+            : '') +
+          '<button type="button" class="edit">Edit</button>' +
           '</div>';
 
-        var buttons = card.querySelectorAll('button');
-        buttons[0].onclick = function () { copyText(reply.text, reply.name); };
-        buttons[1].onclick = function () { openReplyForm(reply); };
+        card.querySelector('.primary').onclick = function () { copyText(reply.text, reply.name); };
+        card.querySelector('.edit').onclick = function () { openReplyForm(reply); };
+
+        if (reply.picture) {
+          var picture = card.querySelector('.rimg');
+          var share = card.querySelector('.share');
+          card.querySelector('.pick').onclick = function () { pickReplyPicture(reply); };
+          share.onclick = function () { shareReplyPicture(reply); };
+
+          // Shown, with Share, once a picture has been picked on this phone.
+          loadReplyPicture(reply.name).then(function (blob) {
+            if (!blob) return;
+            picture.src = URL.createObjectURL(blob);
+            picture.style.display = '';
+            share.classList.remove('hide');
+          });
+        }
+
         host.appendChild(card);
       });
     }
 
+    // Pictures for replies like Map, picked once from the gallery and kept on this
+    // phone only, so they never sit on the public GitHub page.
+    var replyPictures = {};
+
+    function pictureStore(mode) {
+      return new Promise(function (resolve, reject) {
+        var open = indexedDB.open('balai-haraya', 1);
+        open.onupgradeneeded = function () { open.result.createObjectStore('pictures'); };
+        open.onsuccess = function () { resolve(open.result.transaction('pictures', mode).objectStore('pictures')); };
+        open.onerror = function () { reject(open.error); };
+      });
+    }
+
+    function loadReplyPicture(name) {
+      if (replyPictures[name]) return Promise.resolve(replyPictures[name]);
+      return pictureStore('readonly').then(function (store) {
+        return new Promise(function (resolve) {
+          var get = store.get(name);
+          get.onsuccess = function () {
+            if (get.result) replyPictures[name] = get.result;
+            resolve(get.result || null);
+          };
+          get.onerror = function () { resolve(null); };
+        });
+      }).catch(function () { return null; });
+    }
+
+    function saveReplyPicture(name, blob) {
+      replyPictures[name] = blob;
+      return pictureStore('readwrite').then(function (store) {
+        return new Promise(function (resolve, reject) {
+          var put = store.put(blob, name);
+          put.onsuccess = function () { resolve(); };
+          put.onerror = function () { reject(put.error); };
+        });
+      });
+    }
+
+    function pickReplyPicture(reply) {
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+
+        // Copied out of the gallery, so the kept picture does not depend on it.
+        file.arrayBuffer().then(function (bytes) {
+          return saveReplyPicture(reply.name, new Blob([bytes], { type: file.type || 'image/jpeg' }));
+        }).then(function () {
+          say(reply.name + ' picture kept');
+        }).catch(function () {
+          say(reply.name + ' picture kept until the app closes', true);
+        }).then(renderList);
+      };
+      input.click();
+    }
+
+    /** Straight into Messenger through the share menu. */
+    function shareReplyPicture(reply) {
+      var blob = replyPictures[reply.name];
+      if (!blob) { say('Pick the picture first', true); return; }
+
+      var type = blob.type || 'image/jpeg';
+      var extension = type === 'image/png' ? '.png' : type === 'image/webp' ? '.webp' : '.jpg';
+      var file = new File([blob], reply.name.toLowerCase() + extension, { type: type });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file] }).catch(function () { /* closed without sharing */ });
+      } else {
+        say('Sharing pictures is not supported here', true);
+      }
+    }
     /**
      * The old select-and-copy first: it runs inside the tap, and still works
      * where the page sits in a frame that the clipboard API is not allowed in.
