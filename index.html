@@ -76,7 +76,9 @@
       cursor: pointer;
     }
     .view.on { background: var(--text); border-color: var(--text); color: #fff; }
-    .views .view { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .views { overflow-x: auto; scrollbar-width: none; }
+    .views::-webkit-scrollbar { display: none; }
+    .views .view { flex: 1 0 auto; padding: 6px 7px; font-size: 11px; white-space: nowrap; }
 
     textarea {
       width: 100%;
@@ -217,6 +219,15 @@
     .reply .buttons { display: flex; gap: 8px; }
     .reply .buttons button { flex: 1; }
     #replyText { min-height: 280px; }
+
+    /* ---------------------------------------------------------- quote */
+
+    .qclash { color: var(--danger); font-weight: 600; font-size: 13px; min-height: 18px; margin: -4px 0 10px; }
+    .qout { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
+    .qchecks { display: flex; gap: 28px; margin-bottom: 12px; }
+    label.check { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--text); }
+    label.check input { width: 20px; height: 20px; margin: 0; padding: 0; }
+    #qClear { width: 100%; }
 
     /* ------------------------------------------- summary breakdown */
 
@@ -411,6 +422,7 @@
       <button class="view on" id="viewDisb">Disbursement</button>
       <button class="view" id="viewBook">Bookings</button>
       <button class="view" id="viewSum">Summary</button>
+      <button class="view" id="viewQuote">Quote</button>
       <button class="view" id="viewReply">Replies</button>
     </div>
     <div class="months" id="months"></div>
@@ -418,6 +430,52 @@
 
   <main>
     <div id="list"></div>
+    <div id="quoteView" class="hide">
+      <div class="reply">
+        <label>Name<input type="text" id="qName" autocomplete="off"></label>
+        <label>Stay<select id="qStay"></select></label>
+        <label class="hide" id="qCustomWrap">Custom stay
+          <input type="text" id="qStayName" placeholder="e.g. 3D3N" autocomplete="off"></label>
+        <div class="pair">
+          <label>Date<input type="date" id="qDate"></label>
+          <label>Time<input type="text" id="qTime" list="qTimes" autocomplete="off"></label>
+        </div>
+        <datalist id="qTimes"></datalist>
+        <div class="qout" id="qOutLine">Checkout <span id="qOut"></span></div>
+        <div class="pair hide" id="qOutWrap">
+          <label>Checkout<input type="date" id="qOutDate"></label>
+          <label>Time<input type="text" id="qOutTime" list="qOutTimes" autocomplete="off"></label>
+        </div>
+        <datalist id="qOutTimes"><option value="6PM"><option value="7AM"></datalist>
+        <div class="qclash" id="qClash"></div>
+        <div class="pair">
+          <label>Pax<input type="number" id="qPax" inputmode="numeric" min="1"></label>
+          <label>Fee<input type="text" id="qFee" inputmode="decimal"></label>
+        </div>
+        <div class="qchecks">
+          <label class="check"><input type="checkbox" id="qHoliday">Holiday</label>
+          <label class="check"><input type="checkbox" id="qPeak">Peak</label>
+        </div>
+        <label>DP<input type="text" id="qDp" inputmode="decimal"></label>
+        <button type="button" id="qClear">Clear</button>
+      </div>
+
+      <div class="reply">
+        <h3>Quote</h3>
+        <div class="text" id="qMsgQuote"></div>
+        <div class="buttons"><button type="button" class="primary" id="qCopyQuote">Copy</button></div>
+      </div>
+      <div class="reply">
+        <h3>DP</h3>
+        <div class="text" id="qMsgDp"></div>
+        <div class="buttons"><button type="button" class="primary" id="qCopyDp">Copy</button></div>
+      </div>
+      <div class="reply">
+        <h3>Confirm</h3>
+        <div class="text" id="qMsgConfirm"></div>
+        <div class="buttons"><button type="button" class="primary" id="qCopyConfirm">Copy</button></div>
+      </div>
+    </div>
   </main>
 
   <div class="working" id="working"><div class="spinner"></div></div>
@@ -764,6 +822,7 @@
       if (view === 'book') return renderBookings();
       if (view === 'sum') return renderSummary();
       if (view === 'reply') return renderReplies();
+      if (view === 'quote') return;   // a form of its own, outside the list
 
       var host = document.getElementById('list');
       host.innerHTML = '';
@@ -1241,13 +1300,19 @@
       document.getElementById('viewBook').classList.toggle('on', next === 'book');
       document.getElementById('viewSum').classList.toggle('on', next === 'sum');
       document.getElementById('viewReply').classList.toggle('on', next === 'reply');
+      document.getElementById('viewQuote').classList.toggle('on', next === 'quote');
+      document.getElementById('list').classList.toggle('hide', next === 'quote');
+      document.getElementById('quoteView').classList.toggle('hide', next !== 'quote');
 
       // The summary spans every month, so it has no month strip and nothing
       // to add.
-      // Neither the summary nor the replies have months or anything to add.
-      var plain = next === 'sum' || next === 'reply';
+      // The summary, quote and replies have no months and nothing to add.
+      var plain = next === 'sum' || next === 'reply' || next === 'quote';
       document.getElementById('months').style.display = plain ? 'none' : '';
       document.getElementById('add').style.display = plain ? 'none' : '';
+
+      // Read the book again on every visit, as the PC does on opening the tab.
+      if (next === 'quote') { loadQuote(); return; }
 
       if (next === 'reply') {
         if (replies.loaded) { renderList(); return; }
@@ -1656,6 +1721,448 @@
       });
     }
 
+    // ------------------------------------------------------- quote
+    //
+    // The same rates, rules and wording as the PC's Quote tab (GuestQuote.cs and
+    // CalendarSlots.cs). A change to a rate or a message belongs in both.
+
+    var QUOTE_STAYS = [
+      { name: '22 hrs', phrase: '22hrs stay', hours: 22, weekday: 10000, weekend: 12000, times: ['9AM', '8PM'] },
+      { name: 'Day', phrase: 'day stay', hours: 9, weekday: 6000, weekend: 8000, times: ['9AM'] },
+      { name: 'Night', phrase: 'night stay', hours: 11, weekday: 7500, weekend: 9500, times: ['8PM'] }
+    ];
+    var QUOTE_BASE_PAX = 10;
+    var QUOTE_MAX_PAX = 10000;
+    var QUOTE_EXCESS_PER_PAX = 300;
+    var QUOTE_PEAK = 2000;
+    var QUOTE_CUSTOM = '__custom__';
+
+    var Q_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+      'August', 'September', 'October', 'November', 'December'];
+    var Q_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    var QUOTE_TERMS = [
+      '',
+      '',
+      'To secure your slot, we require a 50% downpayment to officially block your chosen date. Please note that we follow a \'first-pay, first-reserved\' basis.',
+      '',
+      'The remaining 50% balance must be settled on or before your stay.',
+      '',
+      'NON-refundable',
+      '7 days before your date, no show, early check out',
+      '',
+      'REBOOKABLE',
+      'at least 7 days with fee of P1000',
+      '',
+      'REFUNDABLE',
+      'at least 8 days before the date of reservation with fee of P2000',
+      '',
+      'CLEANLINESS POLICY',
+      'Guests are expected to leave the property in a tidy state. A fee of P350 will be charged if the place is left excessively messy (e.g., unwashed dishes or scattered trash).',
+      '',
+      'CAPACITY & BED SETUP',
+      'We can accommodate up to 20 pax, but please note that the room can only accommodate 10 pax. We have 2 double beds and 3 foldable beds that can be set up for night stays and 22hrs stay bookings.',
+      '',
+      'KARAOKE HOURS',
+      'Karaoke is allowed until 12MN only. Please observe quiet hours after this time to maintain a peaceful environment for everyone.',
+      '',
+      'PET POLICY',
+      'To ensure the safety and comfort of all guests, pets are no longer permitted at the resort.',
+      '',
+      'PROHIBITED ACTIVITIES AND ILLEGAL SUBSTANCES',
+      'Illegal drugs, prohibited substances, and other unlawful materials are not allowed in the resort, and no illegal activity or unlawful conduct is permitted within the resort. This applies to all members of the group.',
+      '',
+      'IMPORTANT NOTE',
+      'To finalize your check-in, we require a signed Release of Liability Agreement from your group and the ID of the person signing on behalf of the group before entering the resort.',
+      '',
+      'Kindly let us know if you want to proceed with the booking. Thank you.'
+    ].join('\n');
+
+    function qPad(n) { return (n < 10 ? '0' : '') + n; }
+
+    /** "Day", "day ", anything else (or blank) as 22 hrs - as the PC reads a sheet's Stay column. */
+    function qFindStay(name) {
+      var wanted = String(name == null ? '' : name).trim().toLowerCase();
+      for (var i = 0; i < QUOTE_STAYS.length; i++) {
+        if (QUOTE_STAYS[i].name.toLowerCase() === wanted) return QUOTE_STAYS[i];
+      }
+      return QUOTE_STAYS[0];
+    }
+
+    /** A stay with no rate, like 3D3N: its fee is whatever is typed. */
+    function qCustomStay(name, hours) {
+      return { name: name, phrase: name + ' stay', hours: hours, weekday: 0, weekend: 0, times: QUOTE_STAYS[0].times };
+    }
+
+    /** "6pm", "6:30 PM" and "18:00" as minutes past midnight; null if unreadable. */
+    function qParseClock(text) {
+      var parts = String(text == null ? '' : text).toUpperCase().replace(/[\s.]/g, '')
+        .match(/^(\d{1,2})(?::(\d{2}))?(AM|PM)?$/);
+      if (!parts) return null;
+
+      var hour = Number(parts[1]);
+      var minute = parts[2] ? Number(parts[2]) : 0;
+      if (minute > 59) return null;
+
+      if (parts[3]) {
+        if (hour < 1 || hour > 12) return null;
+        if (hour === 12) hour = 0;
+        if (parts[3] === 'PM') hour += 12;
+      } else if (hour > 23) {
+        return null;
+      }
+      return hour * 60 + minute;
+    }
+
+    function qDateFromIso(text) {
+      var parts = String(text || '').split('-');
+      if (parts.length !== 3) return null;
+      var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    function qIso(date) {
+      return date.getFullYear() + '-' + qPad(date.getMonth() + 1) + '-' + qPad(date.getDate());
+    }
+
+    function qAddMinutes(date, minutes) {
+      return new Date(date.getTime() + Math.round(minutes) * 60000);
+    }
+
+    function qCheckOut(stay, checkIn) { return qAddMinutes(checkIn, stay.hours * 60); }
+
+    /** "9AM", or "9:30AM" when the time is not on the hour. */
+    function qHour(date) {
+      var hours = date.getHours();
+      var minutes = date.getMinutes();
+      return (hours % 12 || 12) + (minutes ? ':' + qPad(minutes) : '') + (hours < 12 ? 'AM' : 'PM');
+    }
+
+    function qDay(date) {
+      return Q_MONTHS[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
+    }
+
+    /** "Sun, Nov 15, 2026 7AM", for the checkout shown under the form. */
+    function qStamp(date) {
+      return Q_DAYS[date.getDay()] + ', ' + Q_MONTHS[date.getMonth()].slice(0, 3) + ' ' +
+        date.getDate() + ', ' + date.getFullYear() + ' ' + qHour(date);
+    }
+
+    function qMoment(date) {
+      return Q_MONTHS[date.getMonth()].slice(0, 3) + ' ' + date.getDate() + ' ' + qHour(date);
+    }
+
+    function qPhp(amount) {
+      return Number(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    /** "Melissa Reyes" -> "Melissa"; "Ma. Theresa Cruz" -> "Ma. Theresa". */
+    function qFirstName(name) {
+      var words = String(name || '').split(/\s+/).filter(function (w) { return w.length > 0; });
+      if (!words.length) return '';
+      return words.length > 1 && words[0].slice(-1) === '.' ? words[0] + ' ' + words[1] : words[0];
+    }
+
+    function qGreeting(name) {
+      return String(name || '').trim() ? 'Hi ' + qFirstName(name) : 'Hi';
+    }
+
+    /** The check-in day alone sets the rate; holidays and peak season are ticked. */
+    function qFeeFor(stay, checkIn, pax, holiday, peak) {
+      var day = checkIn.getDay();
+      var weekend = holiday || day === 5 || day === 6 || day === 0;
+      return (weekend ? stay.weekend : stay.weekday) +
+        Math.max(0, pax - QUOTE_BASE_PAX) * QUOTE_EXCESS_PER_PAX +
+        (peak ? QUOTE_PEAK : 0);
+    }
+
+    function qMessage(stay, name, checkIn, pax, fee) {
+      var checkOut = qCheckOut(stay, checkIn);
+      var sameDay = qIso(checkIn) === qIso(checkOut);
+
+      var period = sameDay
+        ? 'on ' + qDay(checkIn) + ' (' + qHour(checkIn) + ' to ' + qHour(checkOut) + ')'
+        : 'from ' + qDay(checkIn) + ' (' + qHour(checkIn) + ') to ' + qDay(checkOut) + ' (' + qHour(checkOut) + ')';
+
+      return qGreeting(name) + ', for ' + stay.phrase + ' ' + period + ', ' +
+        'the total fee for ' + pax + ' pax is Php ' + qPhp(fee) + '.' + QUOTE_TERMS;
+    }
+
+    function qAccount(number) {
+      return String(number || '').trim() || '(not set)';
+    }
+
+    function qPayment(bpi, gcash) {
+      return [
+        'If ok po sa inyo, you may send the DP po here and send us proof of payment to reserve the date.',
+        '',
+        'BPI',
+        'Timothy Ferraris',
+        qAccount(bpi),
+        '',
+        'GCASH',
+        'Timothy Ferraris',
+        qAccount(gcash)
+      ].join('\n');
+    }
+
+    function qConfirmation(stay, name, checkIn, pax, balance) {
+      var checkOut = qCheckOut(stay, checkIn);
+      return [
+        qGreeting(name) + ', we’ve received your booking and are excited to welcome you. Here are a few quick reminders for your stay:',
+        '',
+        'Check-in: ' + qDay(checkIn) + ' (' + qHour(checkIn) + ')',
+        'Check-out: ' + qDay(checkOut) + ' (' + qHour(checkOut) + ')',
+        'No. of Pax: ' + pax,
+        'Balance: Php ' + qPhp(balance),
+        '',
+        'Please note that the remaining balance should be settled on or before your arrival date',
+        '',
+        'Tidiness: We kindly ask that trash be placed in bins and dishes be washed. Please note that a fee of P350 will be charged if the place is left excessively messy (e.g., unwashed dishes or scattered trash).',
+        '',
+        'Pet Policy: To ensure the safety and comfort of all guests, pets are no longer permitted at the resort.',
+        '',
+        'Karaoke Hours: Karaoke is allowed until 12MN only. Please observe quiet hours after this time to maintain a peaceful environment for everyone.',
+        '',
+        'Prohibited Activities and Illegal Substances: Illegal drugs, prohibited substances, and other unlawful materials are not allowed in the resort, and no illegal activity or unlawful conduct is permitted within the resort. This applies to all members of the group.',
+        '',
+        'To finalize your check-in, we require a signed Release of Liability Agreement from your group and the ID of the person signing on behalf of the group upon entering the resort.'
+      ].join('\n');
+    }
+
+    /**
+     * A booked stay's arrival and departure. A blank or unreadable time takes the
+     * stay's usual check-in and its usual length, as the PC's Calendar does.
+     */
+    function qWindow(booked) {
+      var stay = qFindStay(booked.stay);
+      var arrives = qParseClock(booked.inTime);
+      if (arrives === null) arrives = qParseClock(stay.times[0]);
+
+      var start = qAddMinutes(qDateFromIso(booked.inDate), arrives);
+      var departs = qParseClock(booked.outTime);
+      var outDate = qDateFromIso(booked.outDate);
+
+      var end = outDate && departs !== null ? qAddMinutes(outDate, departs) : qCheckOut(stay, start);
+      return { start: start, end: end };
+    }
+
+    /** The stays a new one would run into, earliest first. A handover is not a clash. */
+    function qClashes(stays, start, end) {
+      return stays
+        .map(function (s) { return { stay: s, window: qWindow(s) }; })
+        .filter(function (s) {
+          return s.window.end > s.window.start && s.window.start < end && s.window.end > start;
+        })
+        .sort(function (a, b) { return a.window.start - b.window.start; });
+    }
+
+    function qClashLine(clashes) {
+      var first = clashes[0];
+      var more = clashes.length > 1 ? ' +' + (clashes.length - 1) : '';
+      return 'Booked: ' + first.stay.name + ', ' + qMoment(first.window.start) +
+        ' to ' + qMoment(first.window.end) + more;
+    }
+
+    // The form. undefined stays: not read yet; null: the read failed.
+    var quote = {
+      stays: undefined, bpi: '', gcash: '',
+      custom: false, customHours: 22, lastRated: QUOTE_STAYS[0],
+      minutes: 9 * 60, timeReadable: true
+    };
+
+    function qEl(id) { return document.getElementById(id); }
+
+    function qRated() {
+      var value = qEl('qStay').value;
+      return value === QUOTE_CUSTOM ? null : qFindStay(value);
+    }
+
+    function qStay() {
+      return qRated() || qCustomStay(qEl('qStayName').value.trim(), quote.customHours);
+    }
+
+    function qCheckIn() {
+      var date = qDateFromIso(qEl('qDate').value) || qToday();
+      return qAddMinutes(date, quote.minutes);
+    }
+
+    function qToday() {
+      var now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    function qPax() {
+      var typed = parseInt(qEl('qPax').value, 10);
+      return isNaN(typed) ? QUOTE_BASE_PAX : Math.min(QUOTE_MAX_PAX, Math.max(1, typed));
+    }
+
+    function qMoney(id) { return parseAmount(qEl(id).value) || 0; }
+
+    function qSetTimes(times, keepAny) {
+      var list = qEl('qTimes');
+      list.innerHTML = '';
+      times.forEach(function (time) {
+        var option = document.createElement('option');
+        option.value = time;
+        list.appendChild(option);
+      });
+      if (!keepAny && times.indexOf(qEl('qTime').value) < 0) qEl('qTime').value = times[0];
+    }
+
+    function qReadTime() {
+      var minutes = qParseClock(qEl('qTime').value);
+      quote.timeReadable = minutes !== null;
+      if (minutes !== null) quote.minutes = minutes;
+    }
+
+    /** A check-in the new stay also uses is kept; anything else takes its usual time. */
+    function qStayChanged() {
+      var rated = qRated();
+      var wasCustom = quote.custom;
+      quote.custom = !rated;
+
+      qEl('qCustomWrap').classList.toggle('hide', !quote.custom);
+      qEl('qOutWrap').classList.toggle('hide', !quote.custom);
+      qEl('qOutLine').classList.toggle('hide', quote.custom);
+
+      if (quote.custom) {
+        if (!wasCustom) {
+          quote.customHours = quote.lastRated.hours;
+          qSetTimes(QUOTE_STAYS[0].times, true);
+          qEl('qFee').value = '';      // no rate: the fee is typed
+        }
+        qRebuild();
+        return;
+      }
+
+      quote.lastRated = rated;
+      qSetTimes(rated.times, false);
+      qReadTime();
+      qRecalculate();
+    }
+
+    /** A custom stay's checkout typed or picked: the stay is now that long. */
+    function qCheckOutChanged() {
+      if (!quote.custom) return;
+      var minutes = qParseClock(qEl('qOutTime').value);
+      var date = qDateFromIso(qEl('qOutDate').value);
+      if (minutes === null || !date) return;
+
+      quote.customHours = (qAddMinutes(date, minutes) - qCheckIn()) / 3600000;
+      qRebuild();
+    }
+
+    /** Moves a custom stay's checkout with its check-in, leaving a time being typed alone. */
+    function qSyncCheckOut() {
+      if (!quote.custom) return;
+      var checkOut = qAddMinutes(qCheckIn(), quote.customHours * 60);
+      qEl('qOutDate').value = qIso(checkOut);
+      if (document.activeElement !== qEl('qOutTime')) qEl('qOutTime').value = qHour(checkOut);
+    }
+
+    function qRecalculate() {
+      if (!quote.custom) {
+        var fee = qFeeFor(qStay(), qCheckIn(), qPax(), qEl('qHoliday').checked, qEl('qPeak').checked);
+        qEl('qFee').value = moneyWhileTyping(String(fee));
+      }
+      qRebuild();
+    }
+
+    function qRebuild() {
+      qSyncCheckOut();
+
+      var stay = qStay();
+      var checkIn = qCheckIn();
+      var name = qEl('qName').value;
+      var pax = qPax();
+      var fee = qMoney('qFee');
+      var dp = qMoney('qDp');
+
+      qEl('qOut').textContent = qStamp(qCheckOut(stay, checkIn));
+      qEl('qMsgQuote').textContent = qMessage(stay, name, checkIn, pax, fee);
+      qEl('qMsgDp').textContent = qPayment(quote.bpi, quote.gcash);
+      qEl('qMsgConfirm').textContent = qConfirmation(stay, name, checkIn, pax, fee - dp);
+
+      if (quote.stays === null) {
+        qEl('qClash').textContent = 'Could not check bookings';
+      } else {
+        var clashes = qClashes(quote.stays || [], checkIn, qCheckOut(stay, checkIn));
+        qEl('qClash').textContent = clashes.length ? qClashLine(clashes) : '';
+      }
+
+      // Copy only while the message is fit to send.
+      var complete = !quote.custom || (stay.name.length > 0 && quote.customHours > 0);
+      var quoted = fee > 0 && quote.timeReadable && complete;
+      qEl('qCopyQuote').disabled = !quoted;
+      qEl('qCopyConfirm').disabled = !(quoted && dp > 0 && dp <= fee);
+      qEl('qCopyDp').disabled = !(String(quote.bpi).trim() && String(quote.gcash).trim());
+    }
+
+    function clearQuote() {
+      qEl('qName').value = '';
+      qEl('qStay').value = QUOTE_STAYS[0].name;
+      qEl('qStayName').value = '';
+      qEl('qDate').value = qIso(qToday());
+      qEl('qTime').value = QUOTE_STAYS[0].times[0];
+      qEl('qPax').value = String(QUOTE_BASE_PAX);
+      qEl('qHoliday').checked = false;
+      qEl('qPeak').checked = false;
+      qEl('qDp').value = '';
+      qStayChanged();
+    }
+
+    /** The bookings and account numbers, read again on every visit to the view. */
+    function loadQuote() {
+      qRebuild();
+      call('getQuoteBootstrap', [], true).then(function (data) {
+        quote.stays = data.stays;
+        quote.bpi = data.bpi;
+        quote.gcash = data.gcash;
+        qRebuild();
+      }).catch(function () {
+        quote.stays = null;
+        qRebuild();
+      });
+    }
+
+    function initQuote() {
+      var stay = qEl('qStay');
+      QUOTE_STAYS.forEach(function (s) {
+        var option = document.createElement('option');
+        option.value = s.name;
+        option.textContent = s.name;
+        stay.appendChild(option);
+      });
+      var custom = document.createElement('option');
+      custom.value = QUOTE_CUSTOM;
+      custom.textContent = 'Custom';
+      stay.appendChild(custom);
+
+      stay.addEventListener('change', qStayChanged);
+      qEl('qStayName').addEventListener('input', qRebuild);
+      qEl('qName').addEventListener('input', qRebuild);
+      qEl('qDate').addEventListener('change', qRecalculate);
+      qEl('qTime').addEventListener('input', function () { qReadTime(); qRecalculate(); });
+      // Tidies what was typed, or puts back the last good time.
+      qEl('qTime').addEventListener('blur', function () { qEl('qTime').value = qHour(qCheckIn()); });
+      qEl('qOutDate').addEventListener('change', qCheckOutChanged);
+      qEl('qOutTime').addEventListener('input', qCheckOutChanged);
+      qEl('qOutTime').addEventListener('blur', qSyncCheckOut);
+      qEl('qPax').addEventListener('input', qRecalculate);
+      qEl('qHoliday').addEventListener('change', qRecalculate);
+      qEl('qPeak').addEventListener('change', qRecalculate);
+      qEl('qFee').addEventListener('input', qRebuild);
+      qEl('qDp').addEventListener('input', qRebuild);
+      qEl('qClear').onclick = clearQuote;
+
+      qEl('qCopyQuote').onclick = function () { copyText(qEl('qMsgQuote').textContent, 'Quote'); };
+      qEl('qCopyDp').onclick = function () { copyText(qEl('qMsgDp').textContent, 'DP'); };
+      qEl('qCopyConfirm').onclick = function () { copyText(qEl('qMsgConfirm').textContent, 'Confirm'); };
+
+      clearQuote();
+    }
+
     // ------------------------------------------------------- replies
 
     var replies = { list: [], loaded: false, editing: '' };
@@ -1749,6 +2256,8 @@
     document.getElementById('viewBook').onclick = function () { switchView('book'); };
     document.getElementById('viewSum').onclick = function () { switchView('sum'); };
     document.getElementById('viewReply').onclick = function () { switchView('reply'); };
+    document.getElementById('viewQuote').onclick = function () { switchView('quote'); };
+    initQuote();
     document.getElementById('replyCancel').onclick = closeReplyForm;
     document.getElementById('replyForm').onsubmit = submitReplyForm;
     document.getElementById('replyScrim').onclick = function (event) {
@@ -1764,7 +2273,7 @@
     wireOther('bInTime', 'bInTimeOtherWrap');
     wireOther('bOutTime', 'bOutTimeOtherWrap');
 
-    ['bTotal', 'bDp', 'bFp'].forEach(function (id) {
+    ['bTotal', 'bDp', 'bFp', 'qFee', 'qDp'].forEach(function (id) {
       document.getElementById(id).addEventListener('input', function () {
         var caret = this.selectionStart;
         var before = this.value;
