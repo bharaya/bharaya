@@ -76,9 +76,9 @@
       cursor: pointer;
     }
     .view.on { background: var(--text); border-color: var(--text); color: #fff; }
-    .views { overflow-x: auto; scrollbar-width: none; }
-    .views::-webkit-scrollbar { display: none; }
-    .views .view { flex: 1 0 auto; padding: 6px 7px; font-size: 11px; white-space: nowrap; }
+    /* Six sections: two rows of three, so every name fits on a phone. */
+    .views { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .views .view { padding: 6px 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     textarea {
       width: 100%;
@@ -261,6 +261,13 @@
       resize: none;
       overflow: hidden;
     }
+    .calc { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .calc th, .calc td { padding: 9px 4px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+    .calc thead th { color: var(--muted); font-size: 12px; }
+    .calc tbody th { text-align: left; font-weight: 400; color: var(--muted); font-size: 13px; }
+    .calc tr.total th, .calc tr.total td { font-weight: 700; color: var(--text); border-bottom: 0; font-size: 15px; }
+    .calc tr.copy th, .calc tr.copy td { padding: 2px 2px 0; border-bottom: 0; }
+    .calc tr.copy button { width: 100%; padding: 8px 4px; }
     .qsaved { display: flex; gap: 8px; align-items: flex-end; }
     .qsaved label { flex: 1; }
     #qRemove { margin-bottom: 12px; padding: 12px; }
@@ -463,12 +470,23 @@
       <button class="view" id="viewSum">Summary</button>
       <button class="view" id="viewQuote">Quote</button>
       <button class="view" id="viewReply">Replies</button>
+      <button class="view" id="viewCalc">Calculator</button>
     </div>
     <div class="months" id="months"></div>
   </header>
 
   <main>
     <div id="list"></div>
+    <div id="calcView" class="hide">
+      <div class="reply">
+        <label>Stay<select id="cStay"></select></label>
+        <div class="pair">
+          <label>Pax<input type="number" id="cPax" inputmode="numeric" min="1" value="10"></label>
+          <label>Senior/PWD<input type="number" id="cSeniors" inputmode="numeric" min="0" value="0"></label>
+        </div>
+      </div>
+      <div class="reply"><table class="calc" id="cTable"></table></div>
+    </div>
     <div id="quoteView" class="hide">
       <div class="reply">
         <div class="qsaved">
@@ -875,7 +893,7 @@
       if (view === 'book') return renderBookings();
       if (view === 'sum') return renderSummary();
       if (view === 'reply') return renderReplies();
-      if (view === 'quote') return;   // a form of its own, outside the list
+      if (view === 'quote' || view === 'calc') return;   // views of their own, outside the list
 
       var host = document.getElementById('list');
       host.innerHTML = '';
@@ -1354,18 +1372,21 @@
       document.getElementById('viewSum').classList.toggle('on', next === 'sum');
       document.getElementById('viewReply').classList.toggle('on', next === 'reply');
       document.getElementById('viewQuote').classList.toggle('on', next === 'quote');
-      document.getElementById('list').classList.toggle('hide', next === 'quote');
+      document.getElementById('viewCalc').classList.toggle('on', next === 'calc');
+      document.getElementById('list').classList.toggle('hide', next === 'quote' || next === 'calc');
       document.getElementById('quoteView').classList.toggle('hide', next !== 'quote');
+      document.getElementById('calcView').classList.toggle('hide', next !== 'calc');
 
       // The summary spans every month, so it has no month strip and nothing
       // to add.
       // The summary, quote and replies have no months and nothing to add.
-      var plain = next === 'sum' || next === 'reply' || next === 'quote';
+      var plain = next === 'sum' || next === 'reply' || next === 'quote' || next === 'calc';
       document.getElementById('months').style.display = plain ? 'none' : '';
       document.getElementById('add').style.display = plain ? 'none' : '';
 
       // Read the book again on every visit, as the PC does on opening the tab.
       if (next === 'quote') { loadQuote(); return; }
+      if (next === 'calc') { renderCalc(); return; }
 
       if (next === 'reply') {
         if (replies.loaded) { renderList(); return; }
@@ -2454,6 +2475,105 @@
       clearQuote();
     }
 
+    // ------------------------------------------------------- calculator
+    //
+    // The same table as the PC's Calculator tab (GuestQuote.RateTable): weekday,
+    // weekend and peak side by side. A senior's or PWD's 20% is of the rate for
+    // one pax, the base rate over the 10 it covers, peak's surcharge included.
+
+    var QUOTE_SENIOR_DISCOUNT = 0.2;
+
+    function qRound2(value) { return Math.round(value * 100) / 100; }
+
+    function qRateTable(stay, pax, seniors) {
+      pax = Math.max(1, pax);
+      var excessPax = Math.max(0, pax - QUOTE_BASE_PAX);
+      var count = Math.min(Math.max(0, seniors), pax);
+
+      function column(name, rate) {
+        var excess = excessPax * QUOTE_EXCESS_PER_PAX;
+        var perPax = qRound2(rate / QUOTE_BASE_PAX);
+        var each = qRound2(perPax * QUOTE_SENIOR_DISCOUNT);
+        var discount = qRound2(each * count);
+        return {
+          name: name, rate: rate, excessPax: excessPax, excess: excess, perPax: perPax,
+          seniors: count, discountEach: each, discount: discount,
+          total: qRound2(rate + excess - discount)
+        };
+      }
+
+      return [
+        column('Weekday', stay.weekday),
+        column('Weekend', stay.weekend),
+        column('Peak', stay.weekend + QUOTE_PEAK)
+      ];
+    }
+
+    /** The Calculator's Copy, as the PC's GuestQuote.RateMessage has it. */
+    function qRateMessage(stay, pax, column) {
+      var opening = stay.name === 'Day' ? 'For day stay from 9AM to 6PM'
+        : stay.name === 'Night' ? 'For night stay from 8PM to 7AM the next day'
+        : 'For ' + stay.name + ' stay';
+      var seniors = column.seniors > 0 ? ' with ' + column.seniors + ' senior' : '';
+      var line = opening + ', ang fee po for ' + Math.max(1, pax) + ' pax' + seniors + ' is P' + qPhp(column.total);
+      // The note only matters once the group is more than the room sleeps.
+      return stay.name === 'Day' || pax <= QUOTE_BASE_PAX ? line : line + '\nNote lang po na 1 room lang kami with 10 sleeping capacity';
+    }
+
+    var calcShown = null;
+
+    function readCount(id, fallback) {
+      var typed = parseInt(document.getElementById(id).value, 10);
+      return isNaN(typed) ? fallback : Math.min(QUOTE_MAX_PAX, Math.max(0, typed));
+    }
+
+    function renderCalc() {
+      var stay = qFindStay(document.getElementById('cStay').value);
+      var pax = readCount('cPax', QUOTE_BASE_PAX) || 1;
+      var columns = qRateTable(stay, pax, readCount('cSeniors', 0));
+      calcShown = { stay: stay, pax: pax, columns: columns };
+      var peso = function (amount) { return '₱' + qPhp(amount); };
+
+      function row(label, value, total) {
+        return '<tr' + (total ? ' class="total"' : '') + '><th>' + label + '</th>' +
+          columns.map(function (c) { return '<td>' + value(c) + '</td>'; }).join('') + '</tr>';
+      }
+
+      document.getElementById('cTable').innerHTML =
+        '<thead><tr><th></th>' + columns.map(function (c) { return '<th>' + c.name + '</th>'; }).join('') + '</tr></thead>' +
+        '<tbody>' +
+        row('Rate', function (c) { return peso(c.rate); }) +
+        row('Excess (' + columns[0].excessPax + ')', function (c) { return peso(c.excess); }) +
+        row('Per pax', function (c) { return peso(c.perPax); }) +
+        row('20% each', function (c) { return peso(c.discountEach); }) +
+        row('Discount (' + columns[0].seniors + ')', function (c) { return c.discount > 0 ? '−' + peso(c.discount) : peso(0); }) +
+        row('Total', function (c) { return peso(c.total); }, true) +
+        '<tr class="copy"><th></th>' + columns.map(function (c, i) {
+          return '<td><button type="button" class="primary" data-col="' + i + '">Copy</button></td>';
+        }).join('') + '</tr>' +
+        '</tbody>';
+    }
+
+    function initCalc() {
+      var stay = document.getElementById('cStay');
+      QUOTE_STAYS.forEach(function (s) {
+        var option = document.createElement('option');
+        option.value = s.name;
+        option.textContent = s.name;
+        stay.appendChild(option);
+      });
+      stay.addEventListener('change', renderCalc);
+      document.getElementById('cPax').addEventListener('input', renderCalc);
+      document.getElementById('cSeniors').addEventListener('input', renderCalc);
+      document.getElementById('cTable').addEventListener('click', function (event) {
+        var button = event.target.closest('button[data-col]');
+        if (!button || !calcShown) return;
+        var column = calcShown.columns[Number(button.getAttribute('data-col'))];
+        copyText(qRateMessage(calcShown.stay, calcShown.pax, column), column.name);
+      });
+      renderCalc();
+    }
+
     // ------------------------------------------------------- replies
 
     var replies = { list: [], loaded: false, editing: '' };
@@ -2640,6 +2760,8 @@
     document.getElementById('viewSum').onclick = function () { switchView('sum'); };
     document.getElementById('viewReply').onclick = function () { switchView('reply'); };
     document.getElementById('viewQuote').onclick = function () { switchView('quote'); };
+    document.getElementById('viewCalc').onclick = function () { switchView('calc'); };
+    initCalc();
     initQuote();
     document.getElementById('replyCancel').onclick = closeReplyForm;
     document.getElementById('replyForm').onsubmit = submitReplyForm;
