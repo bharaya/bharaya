@@ -1,0 +1,3065 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Balai Haraya</title>
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Balai Haraya">
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card: #ffffff;
+      --line: #e2e2e7;
+      --text: #1c1c1e;
+      --muted: #6b6b70;
+      --accent: #1a73e8;
+      --danger: #c5221f;
+      --pick: #e8f0fe;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    /* Android Chrome inflates page text by the phone's accessibility text
+       scaling, which overrides the sizes below. This pins it to what the CSS
+       actually says. */
+    html {
+      -webkit-text-size-adjust: 100%;
+      -moz-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.35 -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      /* dvh follows the address bar as it hides, so the pinned bar and the +
+         button do not drift up and down while the list is scrolled. */
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* ---------------------------------------------------------- top bar */
+
+    header {
+      flex: 0 0 auto;
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      padding: 7px 8px 0;
+      z-index: 5;
+    }
+
+    .title { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+
+    .views { display: flex; gap: 4px; margin-bottom: 6px; }
+    .view {
+      flex: 1;
+      padding: 6px 0;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .view.on { background: var(--text); border-color: var(--text); color: #fff; }
+    /* Six sections: two rows of three, so every name fits on a phone. */
+    .views { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .views .view { padding: 6px 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    textarea {
+      width: 100%;
+      margin-top: 4px;
+      padding: 10px;
+      font: inherit;
+      font-size: 16px;
+      min-height: 66px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      resize: vertical;
+    }
+    .pair { display: flex; gap: 8px; }
+    .pair > label { flex: 1; }
+    .hide { display: none; }
+
+    .months {
+      display: flex;
+      gap: 5px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scrollbar-width: none;
+    }
+    .months::-webkit-scrollbar { display: none; }
+
+    .month {
+      flex: 0 0 auto;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .month.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+    /* ---------------------------------------------------------- list */
+
+    main { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 6px 6px 84px; }
+
+    /* table-layout:fixed with percentage columns is what keeps the whole grid
+       inside the screen: cells clip instead of pushing the table wider. */
+    .grid {
+      width: 100%;
+      max-width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .grid th, .grid td {
+      padding: 5px 2px;
+      font-size: 10px;
+      line-height: 1.2;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);   /* columns need separating too */
+    }
+    .grid th:last-child, .grid td:last-child { border-right: 0; }
+
+    .grid th {
+      background: var(--bg);
+      color: var(--muted);
+      font-weight: 700;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .grid td.mid, .grid th.mid { text-align: center; }
+    .grid td.num, .grid th.num { text-align: right; padding-right: 4px; }
+    .grid td.num { font-variant-numeric: tabular-nums; }
+    .grid td.payee { font-weight: 600; padding-left: 4px; }
+
+    .grid td.act { padding: 0; text-align: center; white-space: nowrap; }
+
+    .rowbtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .rowbtn:active { background: var(--line); }
+    .rowbtn.del { color: var(--danger); }
+
+    .grid tbody tr.busy td { opacity: .45; }
+
+    /* Cancelled, rebooked, and settled in full. */
+    .grid tbody tr.cancelled td { background: #ffe2e2; }
+    .grid tbody tr.rebooked td { background: #fff5c8; }
+    .grid tbody tr.paid td { background: #d9eaff; }
+    .grid tbody tr:last-child td { border-bottom: 0; }
+
+    .grid tfoot td {
+      font-weight: 700;
+      font-size: 11px;
+      background: var(--bg);
+      border-top: 2px solid var(--line);
+      border-bottom: 0;
+    }
+
+    .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+
+    /* ---------------------------------------------------------- replies */
+
+    .reply {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .reply h3 { margin: 0 0 6px; font-size: 14px; }
+    .reply .text {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 13px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .reply .buttons { display: flex; gap: 8px; }
+    .reply .buttons button { flex: 1; }
+    .reply img.rimg {
+      display: block;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    #replyText { min-height: 280px; }
+
+    /* A newer page is on GitHub. Left of the + button, above everything but forms. */
+    .updatebar {
+      position: fixed;
+      left: 12px;
+      right: 76px;
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      height: 50px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--text);
+      color: #fff;
+      font-size: 15px;
+      z-index: 16;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+    }
+    .updatebar.hide { display: none; }
+
+    /* ---------------------------------------------------------- quote */
+
+    .qclash { color: var(--danger); font-weight: 600; font-size: 13px; min-height: 18px; margin: -4px 0 10px; }
+    .qout { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
+    .qchecks { display: flex; gap: 28px; margin-bottom: 12px; }
+    label.check { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--text); }
+    label.check input { width: 20px; height: 20px; margin: 0; padding: 0; }
+    /* Editable, and as tall as the message, so it reads like the others. */
+    textarea.qmsg {
+      display: block;
+      margin: 0 0 10px;
+      min-height: 0;
+      font-size: 14px;
+      line-height: 1.4;
+      resize: none;
+      overflow: hidden;
+    }
+    .calc { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .calc th, .calc td { padding: 9px 4px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+    .calc thead th { color: var(--muted); font-size: 12px; }
+    .calc tbody th { text-align: left; font-weight: 400; color: var(--muted); font-size: 13px; }
+    .calc tr.total th, .calc tr.total td { font-weight: 700; color: var(--text); border-bottom: 0; font-size: 15px; }
+    .calc tr.copy th, .calc tr.copy td { padding: 2px 2px 0; border-bottom: 0; }
+    .calc tr.copy button { width: 100%; padding: 8px 4px; }
+    .qsaved { display: flex; gap: 8px; align-items: flex-end; }
+    .qsaved label { flex: 1; }
+    #qRemove { margin-bottom: 12px; padding: 12px; }
+    .qrow { display: flex; gap: 8px; margin-bottom: 14px; }
+    .qrow button { flex: 1; }
+    #qPaid { width: 100%; padding: 13px; }
+
+    /* ------------------------------------------- summary breakdown */
+
+    .section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 14px 2px 5px;
+    }
+    .sectitle { font-size: 12px; font-weight: 700; flex: 0 0 auto; }
+
+    .scope {
+      flex: 1 1 auto;
+      max-width: 170px;
+      padding: 5px 6px;
+      font: inherit;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .section label.bound {
+      display: flex; align-items: center; gap: 4px; margin: 0;
+      flex: 1 1 0; min-width: 0; font-size: 12px; color: var(--muted);
+    }
+    .section label.bound .scope { margin-top: 0; max-width: none; min-width: 0; }
+    .grid tbody tr.inrange td { background: #e8eef6; }
+
+    .lead { font-size: 11px; color: var(--muted); margin: 0 2px 6px; }
+
+    /* The bar sits under the category name rather than in a column of its own:
+       a third column would leave the bar too narrow to read on a phone. */
+    .cat { font-size: 11px; padding-left: 2px; }
+    .cat.top { font-weight: 700; }
+    .cat.none { color: var(--muted); }
+
+    .track {
+      height: 5px;
+      margin-top: 4px;
+      border-radius: 3px;
+      background: var(--line);
+      overflow: hidden;
+    }
+    .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+
+    .pct { color: var(--muted); font-size: 10px; margin-top: 3px; }
+
+    /* ---------------------------------------------------------- buttons */
+
+    .fab {
+      position: fixed;
+      right: 14px;
+      /* Sits above the home-indicator strip on gesture-nav phones. */
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      font-size: 26px;
+      line-height: 1;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+      z-index: 15;
+      cursor: pointer;
+    }
+
+    button, .btn {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+    button:disabled { opacity: .45; }
+
+    /* ---------------------------------------------------------- form */
+
+    .scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .4);
+      display: none;
+      align-items: flex-end;
+      z-index: 20;
+    }
+    .scrim.on { display: flex; }
+
+    .sheet {
+      background: var(--card);
+      width: 100%;
+      max-height: 92vh;
+      overflow-y: auto;
+      border-radius: 16px 16px 0 0;
+      padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    }
+    @media (min-width: 640px) {
+      .scrim { align-items: center; justify-content: center; }
+      .sheet { max-width: 480px; border-radius: 14px; }
+    }
+
+    .sheet h2 { margin: 0 0 14px; font-size: 17px; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+
+    input, select {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px;
+      font-size: 16px;              /* 16px stops iOS zooming on focus */
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--text);
+    }
+    input[inputmode="decimal"] { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .sheet .buttons { display: flex; gap: 8px; margin-top: 4px; }
+    .sheet .buttons button { flex: 1; }
+
+    /* ---------------------------------------------------------- lock */
+
+    .lock {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 40;
+    }
+    .lock.off { display: none; }
+
+    .lock form { width: 100%; max-width: 300px; text-align: center; }
+    .lock .mark { width: 140px; height: 140px; object-fit: contain; margin-bottom: 10px; }
+    .lock h1 { font-size: 20px; margin: 0 0 4px; }
+    .lock p { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+    .lock input { text-align: center; letter-spacing: 4px; font-size: 20px; margin-bottom: 12px; }
+    .lock button { width: 100%; }
+    .lockError { color: var(--danger); font-size: 14px; min-height: 20px; margin-top: 10px; }
+
+    /* ---------------------------------------------------------- status */
+
+    .status {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 78px;
+      padding: 11px 14px;
+      border-radius: 9px;
+      background: #323236;
+      color: #fff;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity .2s;
+      pointer-events: none;
+      z-index: 30;
+    }
+    .status.on { opacity: 1; }
+    .status.bad { background: var(--danger); }
+
+    /* Covers the screen while a write is in flight. Besides showing that
+       something is happening, it swallows the second tap people give a button
+       when they think they missed it. */
+    .working {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, .55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .working.on { display: flex; }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(0, 0, 0, .15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="title" id="title">Balai Haraya</div>
+    <div class="views">
+      <button class="view on" id="viewDisb">Disbursement</button>
+      <button class="view" id="viewBook">Bookings</button>
+      <button class="view" id="viewSum">Summary</button>
+      <button class="view" id="viewQuote">Quote</button>
+      <button class="view" id="viewReply">Replies</button>
+      <button class="view" id="viewCalc">Calculator</button>
+    </div>
+    <div class="months" id="months"></div>
+  </header>
+
+  <main>
+    <div id="list"></div>
+    <div id="calcView" class="hide">
+      <div class="reply">
+        <label>Stay<select id="cStay"></select></label>
+        <div class="pair">
+          <label>Pax<input type="number" id="cPax" inputmode="numeric" min="1" value="10"></label>
+          <label>Senior/PWD<input type="number" id="cSeniors" inputmode="numeric" min="0" value="0"></label>
+        </div>
+      </div>
+      <div class="reply"><table class="calc" id="cTable"></table></div>
+    </div>
+    <div id="quoteView" class="hide">
+      <div class="reply">
+        <div class="qsaved">
+          <label>Saved<select id="qSaved"></select></label>
+          <button type="button" id="qRemove">Remove</button>
+        </div>
+        <label>Name<input type="text" id="qName" autocomplete="off"></label>
+        <label>Stay<select id="qStay"></select></label>
+        <label class="hide" id="qCustomWrap">Custom stay
+          <input type="text" id="qStayName" placeholder="e.g. 3D3N" autocomplete="off"></label>
+        <div class="pair">
+          <label>Date<input type="date" id="qDate"></label>
+          <label>Time<input type="text" id="qTime" list="qTimes" autocomplete="off"></label>
+        </div>
+        <datalist id="qTimes"></datalist>
+        <div class="qout" id="qOutLine">Checkout <span id="qOut"></span></div>
+        <div class="pair hide" id="qOutWrap">
+          <label>Checkout<input type="date" id="qOutDate"></label>
+          <label>Time<input type="text" id="qOutTime" list="qOutTimes" autocomplete="off"></label>
+        </div>
+        <datalist id="qOutTimes"><option value="6PM"><option value="7AM"></datalist>
+        <div class="qclash" id="qClash"></div>
+        <div class="pair">
+          <label>Pax<input type="number" id="qPax" inputmode="numeric" min="1"></label>
+          <label>Fee<input type="text" id="qFee" inputmode="decimal"></label>
+        </div>
+        <div class="qchecks">
+          <label class="check"><input type="checkbox" id="qHoliday">Holiday</label>
+          <label class="check"><input type="checkbox" id="qPeak">Peak</label>
+        </div>
+        <div class="qrow">
+          <button type="button" id="qSave">Save</button>
+          <button type="button" id="qClear">Clear</button>
+        </div>
+        <div class="pair">
+          <label>DP<input type="text" id="qDp" inputmode="decimal"></label>
+          <label>Mode<select id="qMode"></select></label>
+        </div>
+        <label>DP date<input type="date" id="qDpDate"></label>
+        <button type="button" class="primary" id="qPaid">Paid</button>
+      </div>
+
+      <div class="reply">
+        <h3>Quote</h3>
+        <textarea class="qmsg" id="qMsgQuote" spellcheck="false"></textarea>
+        <div class="buttons"><button type="button" class="primary" id="qCopyQuote">Copy</button></div>
+      </div>
+      <div class="reply">
+        <h3>DP</h3>
+        <div class="text" id="qMsgDp"></div>
+        <div class="buttons"><button type="button" class="primary" id="qCopyDp">Copy</button></div>
+      </div>
+      <div class="reply">
+        <h3>Confirm</h3>
+        <textarea class="qmsg" id="qMsgConfirm" spellcheck="false"></textarea>
+        <div class="buttons"><button type="button" class="primary" id="qCopyConfirm">Copy</button></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="working" id="working"><div class="spinner"></div></div>
+
+  <button class="updatebar hide" id="updateBar" type="button">Update</button>
+
+  <button class="fab" id="add" title="Add entry">+</button>
+
+  <div class="scrim" id="bookScrim">
+    <form class="sheet" id="bookForm">
+      <h2 id="bookTitle">New booking</h2>
+
+      <label class="hide" id="bArWrap">AR<input type="text" id="bAr" readonly></label>
+
+      <label>Name<input type="text" id="bName" required autocomplete="off"></label>
+
+      <label>Pax<input type="number" id="bPax" inputmode="numeric" min="0"></label>
+
+      <label>Stay<select id="bStay"></select></label>
+      <label class="hide" id="bStayOtherWrap">Stay (type it)
+        <input type="text" id="bStayOther" autocomplete="off"></label>
+
+      <!-- Near the top on purpose: at the foot of the form the remarks sat
+           270px below the fold, so editing a booking never showed them. -->
+      <label>Remarks<textarea id="bRemarks"></textarea></label>
+
+      <div class="pair">
+        <label>Check in<input type="date" id="bInDate" required></label>
+        <label>Time<select id="bInTime"></select></label>
+      </div>
+      <label class="hide" id="bInTimeOtherWrap">Check-in time (type it)
+        <input type="text" id="bInTimeOther" placeholder="e.g. 10:30 AM"></label>
+
+      <div class="pair">
+        <label>Check out<input type="date" id="bOutDate"></label>
+        <label>Time<select id="bOutTime"></select></label>
+      </div>
+      <label class="hide" id="bOutTimeOtherWrap">Check-out time (type it)
+        <input type="text" id="bOutTimeOther" placeholder="e.g. 11:00 AM"></label>
+
+      <label>Total Cost<input type="text" id="bTotal" inputmode="decimal"></label>
+
+      <div class="pair">
+        <label>DP Date<input type="date" id="bDpDate"></label>
+        <label>DP<input type="text" id="bDp" inputmode="decimal"></label>
+      </div>
+      <div class="pair">
+        <label>Mode of Payment<select id="bDpMode"></select></label>
+        <label>and<select id="bDpMode2"></select></label>
+      </div>
+
+      <label>Full Payment<input type="text" id="bFp" inputmode="decimal"></label>
+      <div class="pair">
+        <label>Mode of Payment<select id="bFpMode"></select></label>
+        <label>and<select id="bFpMode2"></select></label>
+      </div>
+
+      <label>Status<select id="bStatus">
+        <option value="">Normal</option>
+        <option value="CANCELLED">Cancelled</option>
+        <option value="REBOOKED">Rebooked</option>
+      </select></label>
+
+      <div class="buttons">
+        <button type="button" id="bookCancel">Cancel</button>
+        <button type="submit" class="primary" id="bookSave">Add</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="scrim" id="replyScrim">
+    <form class="sheet" id="replyForm">
+      <h2 id="replyTitle">Reply</h2>
+      <label>Name<input type="text" id="replyName" autocomplete="off" required></label>
+      <label>Text<textarea id="replyText"></textarea></label>
+      <div class="buttons">
+        <button type="button" class="danger" id="replyDelete">Delete</button>
+        <button type="button" id="replyCancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="lock" id="lock">
+    <form id="lockForm">
+      <img class="mark" src="data:image/png;base64,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" alt="Balai Haraya">
+      <h1>Balai Haraya</h1>
+      <p>Enter your PIN</p>
+      <input type="password" id="pin" inputmode="numeric" autocomplete="off" required>
+      <button type="submit" class="primary">Unlock</button>
+      <div class="lockError" id="lockError"></div>
+    </form>
+  </div>
+
+  <div class="scrim" id="scrim">
+    <form class="sheet" id="form">
+      <h2 id="formTitle">New entry</h2>
+
+      <label>Date
+        <input type="date" id="fDate" required>
+      </label>
+      <label>Payee
+        <input type="text" id="fPayee" required autocomplete="off">
+      </label>
+      <label>Particular
+        <input type="text" id="fParticular" autocomplete="off">
+      </label>
+      <label>S.I. No.
+        <input type="text" id="fSiNo" inputmode="numeric" autocomplete="off">
+      </label>
+      <label>Amount
+        <input type="text" id="fAmount" inputmode="decimal" required>
+      </label>
+      <label>Type
+        <select id="fType"></select>
+      </label>
+
+      <div class="buttons">
+        <button type="button" id="formCancel">Cancel</button>
+        <button type="submit" class="primary" id="formSave">Add</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    var PENCIL = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">' +
+      '<path d="M11.7 2.1a1.6 1.6 0 0 1 2.2 2.2L6 12.2l-3 .8.8-3z" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+
+    var TRASH = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">' +
+      '<path d="M2.8 4.2h10.4M6.3 4.2V2.6h3.4v1.6M4.4 4.2l.6 9.2h6l.6-9.2" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.4" stroke-linecap="round" ' +
+      'stroke-linejoin="round"/></svg>';
+
+    // 'disb' or 'book'. Each view keeps its own months, list and totals.
+    var view = 'disb';
+
+    var book = {
+      months: [], month: '', entries: [], total: 0, balance: 0,
+      editing: null, loaded: false,
+      stayOptions: [], inTimes: [], outTimes: [], paymentModes: []
+    };
+
+    // from and to are indexes into rows, or -1 for no bound at that end.
+    var summary = { rows: [], loaded: false, from: -1, to: -1 };
+
+    // ---------------------------------------------------------------------
+    // Paste the web app URL from Apps Script here:
+    //   Deploy -> Manage deployments -> Active deployment -> URL -> Copy
+    // It ends in /exec. Nothing else in this file needs changing.
+    // ---------------------------------------------------------------------
+    var API_URL = 'https://script.google.com/macros/s/AKfycbzFZTJ3T5vivB17F5V2n4rQgRP1CtqRZ5WlMeLauJJv4Z9e30tbuMNFBOTuAork6jZz/exec';
+
+    var state = {
+      months: [],
+      month: '',
+      entries: [],
+      total: 0,
+      editing: null,     // the entry being edited, or null when adding
+      categories: []
+    };
+
+    // ------------------------------------------------------- peso formatting
+
+    var PESO = '₱';
+
+    function parseAmount(text) {
+      var cleaned = String(text == null ? '' : text)
+        .replace(new RegExp(PESO, 'g'), '')
+        .replace(/,/g, '')
+        .trim();
+      if (cleaned === '') return null;
+      var value = Number(cleaned);
+      return isFinite(value) ? value : null;
+    }
+
+    function money(value) {
+      return PESO + Number(value).toLocaleString('en-US',
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Formats mid-typing without forcing decimals the user has not typed yet.
+    function moneyWhileTyping(text) {
+      var whole = '', fraction = '', afterPoint = false;
+
+      for (var i = 0; i < text.length; i++) {
+        var ch = text.charAt(i);
+        if (ch >= '0' && ch <= '9') {
+          if (!afterPoint) whole += ch;
+          else if (fraction.length < 2) fraction += ch;
+        } else if (ch === '.' && !afterPoint) {
+          afterPoint = true;
+        }
+      }
+
+      if (whole === '' && !afterPoint) return '';
+
+      var digits = whole.replace(/^0+(?=\d)/, '');
+      if (digits === '') digits = '0';
+
+      var grouped = '';
+      for (var j = 0; j < digits.length; j++) {
+        if (j > 0 && (digits.length - j) % 3 === 0) grouped += ',';
+        grouped += digits.charAt(j);
+      }
+
+      return PESO + grouped + (afterPoint ? '.' + fraction : '');
+    }
+
+    // ------------------------------------------------------- server calls
+
+    // What the device keeps is a key the server hands out once the PIN has been
+    // typed, not the PIN itself, so it is asked for once and not every time the
+    // app is opened. A device holding a key also carries on working when wrong
+    // PINs typed somewhere else have locked signing in.
+    var KEY_KEY = 'cashDisbursementKey';
+    var PIN_KEY = 'cashDisbursementPin';   // where older versions kept the PIN
+
+    // Held here too, so the app still works for the visit when the browser
+    // refuses storage, as private mode does.
+    var deviceKey = '';
+
+    function storedKey() {
+      try { return localStorage.getItem(KEY_KEY) || deviceKey; } catch (e) { return deviceKey; }
+    }
+
+    function rememberKey(key) {
+      deviceKey = key;
+      try {
+        localStorage.setItem(KEY_KEY, key);
+        localStorage.removeItem(PIN_KEY);
+      } catch (e) { /* private mode */ }
+    }
+
+    function forgetKey() {
+      deviceKey = '';
+      try { localStorage.removeItem(KEY_KEY); } catch (e) { /* private mode */ }
+    }
+
+    function oldPin() {
+      try { return localStorage.getItem(PIN_KEY) || ''; } catch (e) { return ''; }
+    }
+
+    function forgetOldPin() {
+      try { localStorage.removeItem(PIN_KEY); } catch (e) { /* private mode */ }
+    }
+
+    // How the server words a key it no longer knows: the PIN was changed, or
+    // the devices were cleared from the editor.
+    var SIGNED_OUT = /signed out:/i;
+
+    function post(body) {
+      // Content-Type text/plain keeps this a "simple" cross-origin request, so
+      // the browser skips the CORS preflight that Apps Script cannot answer.
+      return fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body)
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          if (data.ok) return data.result;
+          throw new Error(data.error || 'The request failed.');
+        });
+    }
+
+    /** Every server call carries the device key; the server rejects a bad one. */
+    function call(name, args, quiet) {
+      if (!quiet) busy(true);
+
+      return post({ action: name, key: storedKey(), args: args || [] })
+        .then(function (result) {
+          if (!quiet) busy(false);
+          return result;
+        })
+        .catch(function (error) {
+          if (!quiet) busy(false);
+
+          // A key the server has dropped sends the user back to the lock screen
+          // rather than leaving every action failing for no visible reason.
+          if (SIGNED_OUT.test((error && error.message) || '')) {
+            forgetKey();
+            showLock('Enter your PIN again.');
+          }
+          throw error;
+        });
+    }
+
+    /** Trades the PIN for this device's key. The PIN itself is never kept. */
+    function signIn(pin) {
+      busy(true);
+
+      return post({ action: 'signIn', pin: pin })
+        .then(function (key) { busy(false); rememberKey(key); })
+        .catch(function (error) { busy(false); throw error; });
+    }
+
+    function busy(on) {
+      document.getElementById('working').classList.toggle('on', on);
+    }
+
+    var statusTimer = null;
+    function say(message, bad) {
+      var box = document.getElementById('status');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'status';
+        box.className = 'status';
+        document.body.appendChild(box);
+      }
+      box.textContent = message;
+      box.className = 'status on' + (bad ? ' bad' : '');
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(function () { box.className = 'status'; }, bad ? 6000 : 2600);
+    }
+
+    function failed(error) {
+      say(error && error.message ? error.message : String(error), true);
+    }
+
+    // ------------------------------------------------------- rendering
+
+    function renderMonths() {
+      var host = document.getElementById('months');
+      host.innerHTML = '';
+
+      var months = view === 'book' ? book.months : state.months;
+      var current = view === 'book' ? book.month : state.month;
+
+      months.forEach(function (name) {
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'month' + (name === current ? ' on' : '');
+        // The tab prefix is redundant once the Bookings view is selected.
+        // "Bookings August 2026" -> "Aug 2026", as on the desktop.
+        chip.textContent = shortMonth(name);
+        chip.onclick = function () { openMonth(name); };
+        host.appendChild(chip);
+      });
+
+      var active = host.querySelector('.month.on');
+      if (active && active.scrollIntoView) {
+        active.scrollIntoView({ inline: 'center', block: 'nearest' });
+      }
+    }
+
+    function renderList() {
+      if (view === 'book') return renderBookings();
+      if (view === 'sum') return renderSummary();
+      if (view === 'reply') return renderReplies();
+      if (view === 'quote' || view === 'calc') return;   // views of their own, outside the list
+
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      if (!state.entries.length) {
+        host.innerHTML = '<div class="empty">No entries in ' + escapeHtml(state.month) +
+          ' yet.<br>Tap + to add one.</div>';
+        return;
+      }
+
+      var table = document.createElement('table');
+      table.className = 'grid';
+
+      // Widths total 100%, so the grid can never be wider than the screen.
+      table.innerHTML =
+        '<colgroup>' +
+        '<col style="width:6%">' +    // No.
+        '<col style="width:12%">' +   // Date
+        '<col style="width:16%">' +   // Payee - ellipsised, full text on hold
+        '<col style="width:11%">' +   // S.I.
+        '<col style="width:22%">' +   // Amount - widest, holds the peso sign
+        '<col style="width:18%">' +   // Type
+        '<col style="width:15%">' +   // edit / delete - two 24px buttons
+        '</colgroup>' +
+        '<thead><tr>' +
+        '<th class="mid">No.</th>' +
+        '<th class="mid">Date</th>' +
+        '<th>Payee</th>' +
+        '<th class="mid">S.I.</th>' +
+        '<th class="num">Amount</th>' +
+        '<th class="mid">Type</th>' +
+        '<th></th>' +
+        '</tr></thead>';
+
+      var body = document.createElement('tbody');
+
+      state.entries.forEach(function (entry) {
+        var tr = document.createElement('tr');
+
+        // title attributes let a clipped cell still be readable on long-press.
+        tr.innerHTML =
+          '<td class="mid">' + escapeHtml(entry.no) + '</td>' +
+          '<td class="mid">' + escapeHtml(entry.dateDisplay) + '</td>' +
+          '<td class="payee" title="' + escapeHtml(entry.payee) + '">' +
+          escapeHtml(entry.payee) + '</td>' +
+          '<td class="mid" title="' + escapeHtml(entry.siNo) + '">' +
+          escapeHtml(entry.siNo) + '</td>' +
+          '<td class="num">' + money(entry.amount) + '</td>' +
+          '<td class="mid" title="' + escapeHtml(entry.type) + '">' +
+          escapeHtml(entry.type) + '</td>' +
+          '<td class="act">' +
+          '<button class="rowbtn edit" title="Edit">' + PENCIL + '</button>' +
+          '<button class="rowbtn del" title="Delete">' + TRASH + '</button>' +
+          '</td>';
+
+        var cell = tr.lastChild;
+        cell.firstChild.onclick = function () { editEntry(entry); };
+        cell.lastChild.onclick = function () { deleteEntry(entry, tr); };
+        body.appendChild(tr);
+      });
+
+      table.appendChild(body);
+
+      var foot = document.createElement('tfoot');
+      function summary(label, amount, red) {
+        return '<tr><td colspan="2"></td><td class="num" colspan="2">' + label + '</td>' +
+          '<td class="num"' + (red ? ' style="color:var(--danger)"' : '') + '>' +
+          money(amount) + '</td><td></td><td></td></tr>';
+      }
+
+      var rows = summary('Total', state.total, false);
+
+      if (state.gross !== null && state.gross !== undefined) {
+        var net = state.gross - state.total;
+        rows += summary('Gross', state.gross, false) + summary('Net', net, net < 0);
+      }
+
+      foot.innerHTML = rows;
+      table.appendChild(foot);
+
+      host.appendChild(table);
+    }
+
+    function escapeHtml(text) {
+      return String(text == null ? '' : text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    /** Booking income for the shown month, for the gross and net lines. */
+    function loadGross() {
+      var parts = String(state.month).split(' ');      // "Sep 2026"
+      var index = MONTH_SHORT.indexOf(parts[0]);
+      if (index < 0) return;
+
+      call('bookingGross', [Number(parts[1]), index], true).then(function (gross) {
+        state.gross = gross;
+        if (view === 'disb') renderList();
+      }).catch(function () { /* a missing figure must not block the list */ });
+    }
+
+    /** The summary is stale once either ledger changes. */
+    function invalidateSummary() {
+      summary.loaded = false;
+      // The pickers hold row indexes, and a reload can shift what they mean.
+      summary.from = summary.to = -1;
+    }
+
+    function applyLedger(result) {
+      invalidateSummary();
+      if (result.months) state.months = result.months;
+      var ledger = result.ledger || result;
+      state.month = ledger.sheetName;
+      state.entries = ledger.entries;
+      state.total = ledger.total;
+      state.gross = null;
+      // The Bookings view shows this month's spending too; keep it in step.
+      if (shortMonth(book.month) === state.month) book.spent = ledger.total;
+      renderMonths();
+      renderList();
+      loadGross();
+    }
+
+    var MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+
+    /** "3-Jul" + "9:00 AM" -> "3-Jul 9:00AM", tight enough for the column. */
+    function withTime(date, time) {
+      if (!time) return date;
+      return date + ' ' + String(time).replace(/\s+/g, '');
+    }
+
+    function shortMonth(name) {
+      var text = String(name).replace(/^Bookings /, '');
+      var parts = text.split(' ');
+      var index = MONTH_LONG.indexOf(parts[0]);
+      return index < 0 ? text : MONTH_SHORT[index] + ' ' + (parts[1] || '');
+    }
+
+    /**
+     * Cancelled beats rebooked beats paid. The first two are read from the
+     * remarks, which is where the sheet already records them.
+     */
+    function bookingState(entry) {
+      var remarks = (entry.remarks || '').toLowerCase();
+      if (remarks.indexOf('cancel') >= 0) return 'cancelled';
+      if (remarks.indexOf('rebook') >= 0) return 'rebooked';
+
+      var owed = Number(String(entry.balanceAfterDp).replace(/[^0-9.\-]/g, ''));
+      var paid = Number(entry.fp) || 0;
+      var billed = Number(String(entry.discounted).replace(/[^0-9.\-]/g, '')) || Number(entry.totalCost) || 0;
+
+      if (billed > 0 && isFinite(owed) && owed === paid) return 'paid';
+      return '';
+    }
+
+    function renderBookings() {
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      if (!book.entries.length) {
+        host.innerHTML = '<div class="empty">No bookings in ' +
+          escapeHtml(book.month.replace(/^Bookings /, '')) +
+          ' yet.<br>Tap + to add one.</div>';
+        return;
+      }
+
+      var table = document.createElement('table');
+      table.className = 'grid';
+
+      // Only seven of the fourteen fields fit a phone; the pencil opens the rest.
+      // Stay sits beside the name, as it does in the desktop app.
+      table.innerHTML =
+        '<colgroup>' +
+        '<col style="width:6%">' +    // AR
+        '<col style="width:12%">' +   // Name - ellipsised, full text on hold
+        '<col style="width:10%">' +   // Stay
+        '<col style="width:19%">' +   // Check in, with its time
+        '<col style="width:7%">' +    // Pax - 6% left its header a hair short
+        '<col style="width:16%">' +   // Total
+        '<col style="width:15%">' +   // Balance
+        '<col style="width:15%">' +   // edit / delete - two 24px buttons
+        '</colgroup>' +
+        '<thead><tr>' +
+        '<th class="mid">AR</th>' +
+        '<th>Name</th>' +
+        '<th class="mid">Stay</th>' +
+        '<th class="mid">Check in</th>' +
+        '<th class="mid">Pax</th>' +
+        '<th class="num">Total</th>' +
+        '<th class="num">Balance</th>' +
+        '<th></th>' +
+        '</tr></thead>';
+
+      var body = document.createElement('tbody');
+
+      book.entries.forEach(function (entry) {
+        var tr = document.createElement('tr');
+        var marker = bookingState(entry);
+        if (marker) tr.className = marker;
+        if (entry.remarks) tr.title = entry.remarks;
+        tr.innerHTML =
+          '<td class="mid" title="No. ' + escapeHtml(entry.no) + '">' +
+          escapeHtml(entry.ar) + '</td>' +
+          '<td class="payee" title="' + escapeHtml(entry.name) + '">' +
+          escapeHtml(entry.name) + '</td>' +
+          '<td class="mid" title="' + escapeHtml(entry.stay) + '">' +
+          escapeHtml(entry.stay) + '</td>' +
+          '<td class="mid">' + escapeHtml(withTime(entry.inDateDisplay, entry.inTime)) + '</td>' +
+          '<td class="mid">' + escapeHtml(String(entry.pax || '')) + '</td>' +
+          '<td class="num">' + escapeHtml(entry.discounted || money(entry.totalCost)) + '</td>' +
+          '<td class="num" title="' + escapeHtml(entry.balanceFinal) + '">' +
+          escapeHtml(entry.balanceFinal) + '</td>' +
+          '<td class="act">' +
+          '<button class="rowbtn edit" title="Edit">' + PENCIL + '</button>' +
+          '<button class="rowbtn del" title="Delete">' + TRASH + '</button>' +
+          '</td>';
+
+        var cell = tr.lastChild;
+        cell.firstChild.onclick = function () { openBookForm(entry); };
+        cell.lastChild.onclick = function () { deleteBooking(entry, tr); };
+        body.appendChild(tr);
+      });
+
+      table.appendChild(body);
+
+      var foot = document.createElement('tfoot');
+      // The total spans Total and Balance: the footer is a point larger than
+      // the rows, and the peso sign pushes it past one column on its own.
+      function line(label, amount, red) {
+        return '<tr><td></td><td class="num" colspan="4">' + label + '</td>' +
+          '<td class="num" colspan="2"' + (red ? ' style="color:var(--danger)"' : '') + '>' +
+          money(amount) + '</td><td></td></tr>';
+      }
+
+      var lines = line('Total', book.total, false);
+
+      // What the same month spent, and what was left - as on the Disbursement view.
+      if (book.spent !== null && book.spent !== undefined) {
+        var left = book.total - book.spent;
+        lines += line('Disbursement', book.spent, false) + line('Net', left, left < 0);
+      }
+
+      foot.innerHTML = lines;
+      table.appendChild(foot);
+
+      host.appendChild(table);
+    }
+
+    /** The rows the From/To range covers, both ends included. */
+    function sumRange() {
+      var last = summary.rows.length - 1;
+      return {
+        lo: summary.from >= 0 && summary.from <= last ? summary.from : 0,
+        hi: summary.to >= 0 && summary.to <= last ? summary.to : last,
+        all: summary.from < 0 && summary.to < 0
+      };
+    }
+
+    function renderSummary() {
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      if (!summary.rows.length) {
+        host.innerHTML = '<div class="empty">Nothing to total yet.</div>';
+        return;
+      }
+
+      var table = document.createElement('table');
+      table.className = 'grid';
+      table.innerHTML =
+        '<colgroup>' +
+        '<col style="width:22%">' +
+        '<col style="width:26%">' +
+        '<col style="width:26%">' +
+        '<col style="width:26%">' +
+        '</colgroup>' +
+        '<thead><tr>' +
+        '<th>Month</th>' +
+        '<th class="num">Gross</th>' +
+        '<th class="num">Out</th>' +
+        '<th class="num">Net</th>' +
+        '</tr></thead>';
+
+      var body = document.createElement('tbody');
+      var totalGross = 0, totalSpent = 0;
+
+      var range = sumRange();
+      summary.rows.forEach(function (row, index) {
+        totalGross += row.gross;
+        totalSpent += row.spent;
+
+        var tr = document.createElement('tr');
+        // The months the breakdown below is adding up.
+        if (!range.all && index >= range.lo && index <= range.hi) tr.className = 'inrange';
+        tr.innerHTML =
+          '<td class="payee">' + escapeHtml(row.month) + '</td>' +
+          '<td class="num">' + money(row.gross) + '</td>' +
+          '<td class="num">' + money(row.spent) + '</td>' +
+          '<td class="num"' + (row.net < 0 ? ' style="color:var(--danger)"' : '') + '>' +
+          money(row.net) + '</td>';
+        body.appendChild(tr);
+      });
+
+      table.appendChild(body);
+
+      var net = totalGross - totalSpent;
+      var foot = document.createElement('tfoot');
+      foot.innerHTML =
+        '<tr><td>All months</td>' +
+        '<td class="num">' + money(totalGross) + '</td>' +
+        '<td class="num">' + money(totalSpent) + '</td>' +
+        '<td class="num"' + (net < 0 ? ' style="color:var(--danger)"' : '') + '>' +
+        money(net) + '</td></tr>';
+      table.appendChild(foot);
+
+      host.appendChild(table);
+      renderBreakdown(host);
+    }
+
+    /**
+     * Where the disbursements went, biggest share first, for the month in the
+     * picker or for all of them. Same figures as the Out column above: both
+     * come from the one read of each month.
+     */
+    function renderBreakdown(host) {
+      var range = sumRange();
+      var scope = summary.rows.slice(range.lo, range.hi + 1);
+
+      var spent = 0;
+      var totals = {};
+      state.categories.forEach(function (name) { totals[name] = 0; });
+
+      scope.forEach(function (row) {
+        spent += row.spent;
+        var byCategory = row.byCategory || {};
+        Object.keys(byCategory).forEach(function (name) {
+          totals[name] = (totals[name] || 0) + byCategory[name];
+        });
+      });
+
+      // Anything in the Amount column that no category column accounts for.
+      var categorised = 0;
+      Object.keys(totals).forEach(function (name) { categorised += totals[name]; });
+      if (spent - categorised > 0.005) totals['Uncategorised'] = spent - categorised;
+
+      var ranked = Object.keys(totals)
+        .map(function (name) { return { name: name, amount: totals[name] }; })
+        .sort(function (a, b) {
+          return b.amount - a.amount || a.name.localeCompare(b.name);
+        });
+
+      // --- the heading, with the month picker beside it
+      var section = document.createElement('div');
+      section.className = 'section';
+
+      var options = '<option value="-1">All</option>';
+      for (var i = summary.rows.length - 1; i >= 0; i--) {     // newest first
+        options += '<option value="' + i + '">' +
+          escapeHtml(summary.rows[i].month) + '</option>';
+      }
+
+      section.innerHTML = '<span class="sectitle">Where it went</span>' +
+        '<label class="bound">From<select class="scope" id="sumFrom">' + options + '</select></label>' +
+        '<label class="bound">To<select class="scope" id="sumTo">' + options + '</select></label>';
+      host.appendChild(section);
+
+      // "All" in either goes back to every month; a From later than its To is
+      // taken as the same range the other way round.
+      var fromBox = document.getElementById('sumFrom');
+      var toBox = document.getElementById('sumTo');
+      fromBox.value = String(summary.from);
+      toBox.value = String(summary.to);
+      function rangePicked() {
+        var from = Number(fromBox.value), to = Number(toBox.value);
+        if (this.value === '-1') from = to = -1;
+        else if (from >= 0 && to >= 0 && from > to) { var swap = from; from = to; to = swap; }
+        summary.from = from;
+        summary.to = to;
+        renderSummary();
+      }
+      fromBox.addEventListener('change', rangePicked);
+      toBox.addEventListener('change', rangePicked);
+
+      var lead = document.createElement('div');
+      lead.className = 'lead';
+      lead.textContent = spent <= 0
+        ? 'Nothing spent.'
+        : ranked[0].name + ' leads at ' + percent(ranked[0].amount / spent);
+      host.appendChild(lead);
+
+      // --- the table itself
+      var table = document.createElement('table');
+      table.className = 'grid';
+      table.innerHTML =
+        '<colgroup><col style="width:56%"><col style="width:44%"></colgroup>' +
+        '<thead><tr><th>Category</th><th class="num">Amount</th></tr></thead>';
+
+      var body = document.createElement('tbody');
+
+      ranked.forEach(function (entry, index) {
+        var share = spent > 0 ? entry.amount / spent : 0;
+        var classes = 'cat' +
+          (index === 0 && entry.amount > 0 ? ' top' : '') +
+          (entry.name === 'Uncategorised' ? ' none' : '');
+
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><div class="' + classes + '">' + escapeHtml(entry.name) + '</div>' +
+          '<div class="track"><div class="fill" style="width:' +
+          (share * 100).toFixed(1) + '%"></div></div></td>' +
+          '<td class="num"><div>' + money(entry.amount) + '</div>' +
+          '<div class="pct">' + percent(share) + '</div></td>';
+        body.appendChild(tr);
+      });
+
+      table.appendChild(body);
+
+      var foot = document.createElement('tfoot');
+      foot.innerHTML = '<tr><td>Total</td><td class="num">' + money(spent) + '</td></tr>';
+      table.appendChild(foot);
+
+      host.appendChild(table);
+    }
+
+    function percent(share) { return (share * 100).toFixed(1) + '%'; }
+
+    function applyBookings(result) {
+      invalidateSummary();
+      if (result.months) book.months = result.months;
+      var ledger = result.ledger || result;
+      book.month = ledger.sheetName;
+      book.entries = ledger.entries;
+      book.total = ledger.total;
+      book.spent = ledger.spent;
+      renderMonths();
+      renderList();
+      // Gross and Net on the Disbursement view come from the bookings.
+      loadGross();
+    }
+
+    // ------------------------------------------------------- view switch
+
+    function fillSelect(id, options, withOther) {
+      var select = document.getElementById(id);
+      select.innerHTML = '';
+      options.forEach(function (name) {
+        var option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+      if (withOther) {
+        var other = document.createElement('option');
+        other.value = '__other__';
+        other.textContent = 'Other...';
+        select.appendChild(other);
+      }
+    }
+
+    /** Shows the free-text box whenever "Other..." is picked. */
+    function wireOther(selectId, wrapId) {
+      document.getElementById(selectId).onchange = function () {
+        document.getElementById(wrapId)
+          .classList.toggle('hide', this.value !== '__other__');
+      };
+    }
+
+    function setSelectOrOther(selectId, wrapId, otherId, value) {
+      var select = document.getElementById(selectId);
+      var known = [].some.call(select.options, function (o) { return o.value === value; });
+
+      if (value && !known) {
+        select.value = '__other__';
+        document.getElementById(otherId).value = value;
+        document.getElementById(wrapId).classList.remove('hide');
+      } else {
+        select.value = value || select.options[0].value;
+        document.getElementById(otherId).value = '';
+        document.getElementById(wrapId).classList.add('hide');
+      }
+    }
+
+    function readSelectOrOther(selectId, otherId) {
+      var value = document.getElementById(selectId).value;
+      return value === '__other__'
+        ? document.getElementById(otherId).value.trim()
+        : value;
+    }
+
+    function switchView(next) {
+      if (view === next) return;
+      view = next;
+
+      document.getElementById('viewDisb').classList.toggle('on', next === 'disb');
+      document.getElementById('viewBook').classList.toggle('on', next === 'book');
+      document.getElementById('viewSum').classList.toggle('on', next === 'sum');
+      document.getElementById('viewReply').classList.toggle('on', next === 'reply');
+      document.getElementById('viewQuote').classList.toggle('on', next === 'quote');
+      document.getElementById('viewCalc').classList.toggle('on', next === 'calc');
+      document.getElementById('list').classList.toggle('hide', next === 'quote' || next === 'calc');
+      document.getElementById('quoteView').classList.toggle('hide', next !== 'quote');
+      document.getElementById('calcView').classList.toggle('hide', next !== 'calc');
+
+      // The summary spans every month, so it has no month strip and nothing
+      // to add.
+      // The summary, quote and replies have no months and nothing to add.
+      var plain = next === 'sum' || next === 'reply' || next === 'quote' || next === 'calc';
+      document.getElementById('months').style.display = plain ? 'none' : '';
+      // Replies have no months, but + adds a reply there.
+      document.getElementById('add').style.display = plain && next !== 'reply' ? 'none' : '';
+
+      // Read the book again on every visit, as the PC does on opening the tab.
+      if (next === 'quote') { loadQuote(); return; }
+      if (next === 'calc') { renderCalc(); return; }
+
+      if (next === 'reply') {
+        if (replies.loaded) { renderList(); return; }
+        document.getElementById('list').innerHTML = '';
+        call('getReplies', []).then(function (list) {
+          replies.list = list;
+          replies.loaded = true;
+          if (view === 'reply') renderList();
+        }).catch(failed);
+        return;
+      }
+
+      if (next === 'sum') {
+        if (summary.loaded) { renderList(); return; }
+        call('getSummary', []).then(function (rows) {
+          summary.rows = rows;
+          summary.loaded = true;
+          renderList();
+        }).catch(failed);
+        return;
+      }
+
+      if (next === 'book' && !book.loaded) {
+        call('getBookingBootstrap', []).then(function (data) {
+          book.loaded = true;
+          book.stayOptions = data.stayOptions;
+          book.inTimes = data.inTimes;
+          book.outTimes = data.outTimes;
+          book.paymentModes = data.paymentModes;
+
+          fillSelect('bStay', data.stayOptions, true);
+          fillSelect('bInTime', data.inTimes, true);
+          fillSelect('bOutTime', data.outTimes, true);
+          fillSelect('bDpMode', [''].concat(data.paymentModes), false);
+          fillSelect('bDpMode2', [''].concat(data.paymentModes), false);
+          fillSelect('bFpMode', [''].concat(data.paymentModes), false);
+          fillSelect('bFpMode2', [''].concat(data.paymentModes), false);
+
+          book.months = data.months;
+          book.month = data.selected;
+          applyBookings({ months: data.months, ledger: data.ledger });
+        }).catch(failed);
+        return;
+      }
+
+      renderMonths();
+      renderList();
+    }
+
+    // ------------------------------------------------------- booking form
+
+    function openBookForm(entry) {
+      book.editing = entry || null;
+
+      document.getElementById('bookTitle').textContent = entry ? 'Edit booking' : 'New booking';
+      document.getElementById('bookSave').textContent = entry ? 'Save' : 'Add';
+
+      // Nothing to show for a new booking: the AR is assigned on save.
+      document.getElementById('bArWrap').classList.toggle('hide', !entry);
+      document.getElementById('bAr').value = entry ? entry.ar : '';
+      document.getElementById('bName').value = entry ? entry.name : '';
+      document.getElementById('bPax').value = entry ? (entry.pax || '') : '';
+      document.getElementById('bInDate').value = entry ? entry.inDateIso : state.today;
+      document.getElementById('bOutDate').value = entry ? entry.outDateIso : '';
+      document.getElementById('bTotal').value = entry ? money(entry.totalCost) : '';
+      document.getElementById('bDpDate').value = entry ? entry.dpDateIso : '';
+      document.getElementById('bDp').value = entry && entry.dp ? money(entry.dp) : '';
+      document.getElementById('bFp').value = entry && entry.fp ? money(entry.fp) : '';
+      document.getElementById('bRemarks').value = entry ? entry.remarks : '';
+
+      setSelectOrOther('bStay', 'bStayOtherWrap', 'bStayOther', entry ? entry.stay : '');
+      setSelectOrOther('bInTime', 'bInTimeOtherWrap', 'bInTimeOther', entry ? entry.inTime : '');
+      setSelectOrOther('bOutTime', 'bOutTimeOtherWrap', 'bOutTimeOther', entry ? entry.outTime : '');
+      splitModes(entry ? entry.dpMode : '', 'bDpMode', 'bDpMode2');
+      splitModes(entry ? entry.fpMode : '', 'bFpMode', 'bFpMode2');
+
+      // Named 'marker', not 'state': a local called state would shadow the
+      // page's state object for this whole function.
+      var marker = entry ? bookingState(entry) : '';
+      document.getElementById('bStatus').value =
+        marker === 'cancelled' ? 'CANCELLED' : marker === 'rebooked' ? 'REBOOKED' : '';
+
+      document.getElementById('bookScrim').classList.add('on');
+    }
+
+    /** Two dropdowns into one cell: "BPI + Cash". */
+    function combineModes(firstId, secondId) {
+      var a = document.getElementById(firstId).value;
+      var b = document.getElementById(secondId).value;
+      if (!a) return b;
+      if (!b || a === b) return a;
+      return a + ' + ' + b;
+    }
+
+    function splitModes(value, firstId, secondId) {
+      var parts = String(value || '').split('+').map(function (p) { return p.trim(); })
+        .filter(function (p) { return p.length > 0; });
+      setOption(firstId, parts[0] || '');
+      setOption(secondId, parts[1] || '');
+    }
+
+    /** Keeps a value the sheet holds even when it is not one of the standard modes. */
+    function setOption(id, value) {
+      var select = document.getElementById(id);
+      var known = [].some.call(select.options, function (o) { return o.value === value; });
+      if (value && !known) {
+        var option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      }
+      select.value = value;
+    }
+
+    function closeBookForm() {
+      document.getElementById('bookScrim').classList.remove('on');
+      book.editing = null;
+    }
+
+    var BOOKING_CLASH = 'BOOKING_CLASH:';
+
+    /**
+     * The clash report the server encodes into its refusal, or null when the
+     * failure was an ordinary one.
+     */
+    function parseClash(error) {
+      var message = (error && error.message) || String(error || '');
+      var at = message.indexOf(BOOKING_CLASH);
+      if (at < 0) return null;
+
+      try {
+        return JSON.parse(message.slice(at + BOOKING_CLASH.length));
+      } catch (ignored) {
+        return null;
+      }
+    }
+
+    /**
+     * Sets the stay being saved against the ones it runs into, so the overlap
+     * can be read off directly rather than inferred from a bare warning.
+     */
+    function confirmClash(clash) {
+      var limit = 4;
+      var others = clash.clashes || [];
+
+      var lines = others.slice(0, limit).map(function (c) {
+        return '  AR ' + c.ar + '  ' + c.name + '\n' +
+          '    ' + c.arrives + '  to  ' + c.departs;
+      });
+
+      if (others.length > limit) {
+        lines.push('  ... and ' + (others.length - limit) + ' more');
+      }
+
+      var heading = others.length === 1
+        ? 'This stay overlaps one already booked:'
+        : 'This stay overlaps ' + others.length + ' already booked:';
+
+      return confirm(
+        heading + '\n' + '\n' +
+        lines.join('\n') + '\n' + '\n' +
+        '  Being saved:' + '\n' +
+        '    ' + clash.name + '\n' +
+        '    ' + clash.arrives + '  to  ' + clash.departs + '\n' + '\n' +
+        'The house would be double-booked. Do you wish to continue?');
+    }
+
+    function submitBookForm(event) {
+      event.preventDefault();
+
+      var name = document.getElementById('bName').value.trim();
+      if (!name) { say('Enter a name.', true); return; }
+
+      var inDate = document.getElementById('bInDate').value;
+      if (!inDate) { say('Enter a check-in date.', true); return; }
+
+      function amount(id) {
+        var raw = document.getElementById(id).value.trim();
+        if (!raw) return '';
+        var value = parseAmount(raw);
+        return value === null ? '' : value;
+      }
+
+      var payload = {
+        ar: document.getElementById('bAr').value.trim(),
+        name: name,
+        stay: readSelectOrOther('bStay', 'bStayOther'),
+        remarks: document.getElementById('bRemarks').value.trim(),
+        pax: document.getElementById('bPax').value.trim(),
+        inDate: inDate,
+        inTime: readSelectOrOther('bInTime', 'bInTimeOther'),
+        outDate: document.getElementById('bOutDate').value,
+        outTime: readSelectOrOther('bOutTime', 'bOutTimeOther'),
+        totalCost: amount('bTotal'),
+        dpDate: document.getElementById('bDpDate').value,
+        dp: amount('bDp'),
+        dpMode: combineModes('bDpMode', 'bDpMode2'),
+        fp: amount('bFp'),
+        fpMode: combineModes('bFpMode', 'bFpMode2')
+      };
+
+      var editing = book.editing;
+
+      function sendBooking() {
+        return editing
+          ? call('updateBooking', [editing.sheetName || book.month, editing.sheetRow, payload])
+          : call('addBooking', [payload]);
+      }
+
+      var status = document.getElementById('bStatus').value;
+
+      sendBooking().catch(function (error) {
+        // The server refuses an overlapping stay until it is told the dates
+        // were meant. Asking here keeps the check on the server, inside the
+        // write lock, while the question still gets asked on the phone.
+        var clash = parseClash(error);
+        if (!clash) throw error;
+        if (!confirmClash(clash)) return null;
+
+        payload.allowClash = true;
+        return sendBooking();
+      }).then(function (result) {
+        // Null means the prompt was answered No; the form stays open on the
+        // booking so the dates can be corrected.
+        if (!result) return;
+
+        // The marker lives in the remarks, so it is applied after the row is
+        // written rather than being part of the same payload.
+        var target = (result.ledger.entries || []).filter(function (e) {
+          return e.name === payload.name && e.inDateIso === payload.inDate;
+        })[0];
+
+        if (target && bookingState(target) !== (status ? status.toLowerCase() : '')) {
+          return call('markBooking', [result.ledger.sheetName, target.sheetRow, status || null])
+            .then(function (marked) {
+              closeBookForm();
+              applyBookings(marked);
+              say(editing ? 'Saved.' : 'Added, AR ' + (result.ar || ''));
+            });
+        }
+
+        closeBookForm();
+        applyBookings(result);
+        say(editing ? 'Saved.' : 'Added, AR ' + (result.ar || ''));
+      }).catch(failed);
+    }
+
+    function deleteBooking(entry, tr) {
+      if (!confirm('Delete No. ' + entry.no + ' - ' + entry.name + '?\n\n' +
+        'The bookings below it move up and are renumbered.')) return;
+
+      tr.className = 'busy';
+      call('deleteBookings', [book.month, [entry.sheetRow]]).then(function (result) {
+        applyBookings(result);
+        say('Deleted.');
+      }).catch(function (error) { tr.className = ''; failed(error); });
+    }
+
+    // ------------------------------------------------------- actions
+
+    function openMonth(name) {
+      if (view === 'book') {
+        book.month = name;
+        renderMonths();
+        call('getBookings', [name]).then(applyBookings).catch(failed);
+        return;
+      }
+
+      state.month = name;
+      renderMonths();
+      call('getEntries', [name]).then(applyLedger).catch(failed);
+    }
+
+    function openForm(entry) {
+      state.editing = entry || null;
+
+      document.getElementById('formTitle').textContent = entry ? 'Edit entry' : 'New entry';
+      document.getElementById('formSave').textContent = entry ? 'Save' : 'Add';
+
+      document.getElementById('fDate').value = entry ? entry.dateIso : state.today;
+      document.getElementById('fPayee').value = entry ? entry.payee : '';
+      document.getElementById('fParticular').value = entry ? entry.particular : '';
+      document.getElementById('fSiNo').value = entry ? entry.siNo : '';
+      document.getElementById('fAmount').value = entry ? money(entry.amount) : '';
+
+      var type = document.getElementById('fType');
+      type.value = entry && entry.type ? entry.type : state.categories[0];
+
+      document.getElementById('scrim').classList.add('on');
+    }
+
+    function closeForm() {
+      document.getElementById('scrim').classList.remove('on');
+      state.editing = null;
+    }
+
+    var DUPLICATE_SI = 'DUPLICATE_SI:';
+
+    /**
+     * The duplicate report the server encodes into its refusal, or null when
+     * the failure was an ordinary one. Searched for rather than matched at the
+     * start, since each transport dresses the message up differently.
+     */
+    function parseDuplicate(error) {
+      var message = (error && error.message) || String(error || '');
+      var at = message.indexOf(DUPLICATE_SI);
+      if (at < 0) return null;
+
+      try {
+        return JSON.parse(message.slice(at + DUPLICATE_SI.length));
+      } catch (ignored) {
+        return null;
+      }
+    }
+
+    /**
+     * Names what is already filed under this number rather than just saying
+     * that something is, since the right answer depends on which entry it
+     * turns out to be.
+     */
+    function confirmDuplicate(duplicate) {
+      var limit = 5;
+      var matches = duplicate.matches || [];
+
+      var lines = matches.slice(0, limit).map(function (m) {
+        return '  ' + m.sheetName + '  No. ' + m.no + '  ' + m.date + '  ' +
+          m.payee + '  ' + m.amount;
+      });
+
+      if (matches.length > limit) {
+        lines.push('  ... and ' + (matches.length - limit) + ' more');
+      }
+
+      var heading = matches.length === 1
+        ? 'S.I. No. ' + duplicate.siNo + ' is already in the ledger:'
+        : 'S.I. No. ' + duplicate.siNo + ' is already in the ledger ' +
+          matches.length + ' times:';
+
+      return confirm(heading + '\n\n' + lines.join('\n') +
+        '\n\nThis looks like a duplicate. Do you wish to continue?');
+    }
+
+    function submitForm(event) {
+      event.preventDefault();
+
+      var amount = parseAmount(document.getElementById('fAmount').value);
+      if (amount === null) { say('The amount is not a number.', true); return; }
+
+      var payee = document.getElementById('fPayee').value.trim();
+      if (!payee) { say('Enter a payee.', true); return; }
+
+      var payload = {
+        date: document.getElementById('fDate').value,
+        payee: payee,
+        particular: document.getElementById('fParticular').value.trim(),
+        siNo: document.getElementById('fSiNo').value.trim(),
+        amount: amount,
+        type: document.getElementById('fType').value
+      };
+
+      var editing = state.editing;
+
+      function send() {
+        return editing
+          ? call('updateEntry', [editing.sheetName || state.month, editing.sheetRow, payload])
+          : call('addEntry', [payload]);
+      }
+
+      send().catch(function (error) {
+        // The server refuses a repeat S.I. number until it is told the typist
+        // meant it. Asking here keeps the check itself on the server, inside
+        // the write lock, while the question still gets asked on the phone.
+        var duplicate = parseDuplicate(error);
+        if (!duplicate) throw error;
+        if (!confirmDuplicate(duplicate)) return null;
+
+        payload.allowDuplicate = true;
+        return send();
+      }).then(function (result) {
+        // Null means the prompt was answered No; the form stays open on the
+        // entry so the number can be corrected.
+        if (!result) return;
+
+        closeForm();
+        applyLedger(result);
+        say(editing ? 'Saved.' : 'Added to ' + result.ledger.sheetName + '.');
+      }).catch(failed);
+    }
+
+    function editEntry(entry) {
+      entry.sheetName = state.month;
+      openForm(entry);
+    }
+
+    function deleteEntry(entry, tr) {
+      if (!confirm('Delete No. ' + entry.no + ' - ' + entry.payee + ' - ' +
+        money(entry.amount) + '?\n\nThe entries below it move up and are renumbered.')) return;
+
+      tr.className = 'busy';
+      call('deleteEntries', [state.month, [entry.sheetRow]]).then(function (result) {
+        applyLedger(result);
+        say('Deleted.');
+      }).catch(function (error) {
+        tr.className = '';
+        failed(error);
+      });
+    }
+
+    // ------------------------------------------------------- quote
+    //
+    // The same rates, rules and wording as the PC's Quote tab (GuestQuote.cs and
+    // CalendarSlots.cs). A change to a rate or a message belongs in both.
+
+    var QUOTE_STAYS = [
+      { name: '22 hrs', phrase: '22hrs stay', hours: 22, weekday: 10000, weekend: 12000, times: ['9AM', '8PM'] },
+      { name: 'Day', phrase: 'day stay', hours: 9, weekday: 6000, weekend: 8000, times: ['9AM'] },
+      { name: 'Night', phrase: 'night stay', hours: 11, weekday: 7500, weekend: 9500, times: ['8PM'] }
+    ];
+    var QUOTE_BASE_PAX = 10;
+    var QUOTE_MAX_PAX = 10000;
+    var QUOTE_EXCESS_PER_PAX = 300;
+    var QUOTE_PEAK = 2000;
+    var QUOTE_CUSTOM = '__custom__';
+
+    var Q_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+      'August', 'September', 'October', 'November', 'December'];
+    var Q_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    var QUOTE_TERMS = [
+      '',
+      '',
+      'To secure your slot, we require a 50% downpayment to officially block your chosen date. Please note that we follow a \'first-pay, first-reserved\' basis.',
+      '',
+      'The remaining 50% balance must be settled on or before your stay.',
+      '',
+      'NON-refundable',
+      '7 days before your date, no show, early check out',
+      '',
+      'REBOOKABLE',
+      'at least 7 days with fee of P1000',
+      '',
+      'REFUNDABLE',
+      'at least 8 days before the date of reservation with fee of P2000',
+      '',
+      'CLEANLINESS POLICY',
+      'Guests are expected to leave the property in a tidy state. A fee of P350 will be charged if the place is left excessively messy (e.g., unwashed dishes or scattered trash).',
+      '',
+      'CAPACITY & BED SETUP',
+      'We can accommodate up to 20 pax, but please note that the room can only accommodate 10 pax. We have 2 double beds and 3 foldable beds that can be set up for night stays and 22hrs stay bookings.',
+      '',
+      'KARAOKE HOURS',
+      'Karaoke is allowed until 12MN only. Please observe quiet hours after this time to maintain a peaceful environment for everyone.',
+      '',
+      'PET POLICY',
+      'To ensure the safety and comfort of all guests, pets are no longer permitted at the resort.',
+      '',
+      'PROHIBITED ACTIVITIES AND ILLEGAL SUBSTANCES',
+      'Illegal drugs, prohibited substances, and other unlawful materials are not allowed in the resort, and no illegal activity or unlawful conduct is permitted within the resort. This applies to all members of the group.',
+      '',
+      'IMPORTANT NOTE',
+      'To finalize your check-in, we require a signed Release of Liability Agreement from your group and the ID of the person signing on behalf of the group before entering the resort.',
+      '',
+      'Kindly let us know if you want to proceed with the booking. Thank you.'
+    ].join('\n');
+
+    function qPad(n) { return (n < 10 ? '0' : '') + n; }
+
+    /** "Day", "day ", anything else (or blank) as 22 hrs - as the PC reads a sheet's Stay column. */
+    function qFindStay(name) {
+      var wanted = String(name == null ? '' : name).trim().toLowerCase();
+      for (var i = 0; i < QUOTE_STAYS.length; i++) {
+        if (QUOTE_STAYS[i].name.toLowerCase() === wanted) return QUOTE_STAYS[i];
+      }
+      return QUOTE_STAYS[0];
+    }
+
+    /** A stay with no rate, like 3D3N: its fee is whatever is typed. */
+    function qCustomStay(name, hours) {
+      return { name: name, phrase: name + ' stay', hours: hours, weekday: 0, weekend: 0, times: QUOTE_STAYS[0].times };
+    }
+
+    /** "6pm", "6:30 PM" and "18:00" as minutes past midnight; null if unreadable. */
+    function qParseClock(text) {
+      var parts = String(text == null ? '' : text).toUpperCase().replace(/[\s.]/g, '')
+        .match(/^(\d{1,2})(?::(\d{2}))?(AM|PM)?$/);
+      if (!parts) return null;
+
+      var hour = Number(parts[1]);
+      var minute = parts[2] ? Number(parts[2]) : 0;
+      if (minute > 59) return null;
+
+      if (parts[3]) {
+        if (hour < 1 || hour > 12) return null;
+        if (hour === 12) hour = 0;
+        if (parts[3] === 'PM') hour += 12;
+      } else if (hour > 23) {
+        return null;
+      }
+      return hour * 60 + minute;
+    }
+
+    function qDateFromIso(text) {
+      var parts = String(text || '').split('-');
+      if (parts.length !== 3) return null;
+      var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    function qIso(date) {
+      return date.getFullYear() + '-' + qPad(date.getMonth() + 1) + '-' + qPad(date.getDate());
+    }
+
+    function qAddMinutes(date, minutes) {
+      return new Date(date.getTime() + Math.round(minutes) * 60000);
+    }
+
+    function qCheckOut(stay, checkIn) { return qAddMinutes(checkIn, stay.hours * 60); }
+
+    /** "9AM", or "9:30AM" when the time is not on the hour. */
+    function qHour(date) {
+      var hours = date.getHours();
+      var minutes = date.getMinutes();
+      return (hours % 12 || 12) + (minutes ? ':' + qPad(minutes) : '') + (hours < 12 ? 'AM' : 'PM');
+    }
+
+    function qDay(date) {
+      return Q_MONTHS[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
+    }
+
+    /** "Sun, Nov 15, 2026 7AM", for the checkout shown under the form. */
+    function qStamp(date) {
+      return Q_DAYS[date.getDay()] + ', ' + Q_MONTHS[date.getMonth()].slice(0, 3) + ' ' +
+        date.getDate() + ', ' + date.getFullYear() + ' ' + qHour(date);
+    }
+
+    function qMoment(date) {
+      return Q_MONTHS[date.getMonth()].slice(0, 3) + ' ' + date.getDate() + ' ' + qHour(date);
+    }
+
+    function qPhp(amount) {
+      return Number(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    /** "Melissa Reyes" -> "Melissa"; "Ma. Theresa Cruz" -> "Ma. Theresa". */
+    function qFirstName(name) {
+      var words = String(name || '').split(/\s+/).filter(function (w) { return w.length > 0; });
+      if (!words.length) return '';
+      return words.length > 1 && words[0].slice(-1) === '.' ? words[0] + ' ' + words[1] : words[0];
+    }
+
+    function qGreeting(name) {
+      return String(name || '').trim() ? 'Hi ' + qFirstName(name) : 'Hi';
+    }
+
+    /** The check-in day alone sets the rate; holidays and peak season are ticked. */
+    function qFeeFor(stay, checkIn, pax, holiday, peak) {
+      var day = checkIn.getDay();
+      var weekend = holiday || day === 5 || day === 6 || day === 0;
+      return (weekend ? stay.weekend : stay.weekday) +
+        Math.max(0, pax - QUOTE_BASE_PAX) * QUOTE_EXCESS_PER_PAX +
+        (peak ? QUOTE_PEAK : 0);
+    }
+
+    function qMessage(stay, name, checkIn, pax, fee) {
+      var checkOut = qCheckOut(stay, checkIn);
+      var sameDay = qIso(checkIn) === qIso(checkOut);
+
+      var period = sameDay
+        ? 'on ' + qDay(checkIn) + ' (' + qHour(checkIn) + ' to ' + qHour(checkOut) + ')'
+        : 'from ' + qDay(checkIn) + ' (' + qHour(checkIn) + ') to ' + qDay(checkOut) + ' (' + qHour(checkOut) + ')';
+
+      return qGreeting(name) + ', for ' + stay.phrase + ' ' + period + ', ' +
+        'the total fee for ' + pax + ' pax is Php ' + qPhp(fee) + '.' + QUOTE_TERMS;
+    }
+
+    function qAccount(number) {
+      return String(number || '').trim() || '(not set)';
+    }
+
+    // The account holder's name comes from the script after the PIN, like the
+    // numbers: this page is public, so nothing personal is written into it.
+    function qPayment(bpi, gcash, holder) {
+      return [
+        'If ok po sa inyo, you may send the DP po here and send us proof of payment to reserve the date.',
+        '',
+        'BPI',
+        qAccount(holder),
+        qAccount(bpi),
+        '',
+        'GCASH',
+        qAccount(holder),
+        qAccount(gcash)
+      ].join('\n');
+    }
+
+    function qConfirmation(stay, name, checkIn, pax, balance) {
+      var checkOut = qCheckOut(stay, checkIn);
+      return [
+        qGreeting(name) + ', we’ve received your booking and are excited to welcome you. Here are a few quick reminders for your stay:',
+        '',
+        'Check-in: ' + qDay(checkIn) + ' (' + qHour(checkIn) + ')',
+        'Check-out: ' + qDay(checkOut) + ' (' + qHour(checkOut) + ')',
+        'No. of Pax: ' + pax,
+        'Balance: Php ' + qPhp(balance),
+        '',
+        'Please note that the remaining balance should be settled on or before your arrival date',
+        '',
+        'Tidiness: We kindly ask that trash be placed in bins and dishes be washed. Please note that a fee of P350 will be charged if the place is left excessively messy (e.g., unwashed dishes or scattered trash).',
+        '',
+        'Pet Policy: To ensure the safety and comfort of all guests, pets are no longer permitted at the resort.',
+        '',
+        'Karaoke Hours: Karaoke is allowed until 12MN only. Please observe quiet hours after this time to maintain a peaceful environment for everyone.',
+        '',
+        'Prohibited Activities and Illegal Substances: Illegal drugs, prohibited substances, and other unlawful materials are not allowed in the resort, and no illegal activity or unlawful conduct is permitted within the resort. This applies to all members of the group.',
+        '',
+        'To finalize your check-in, we require a signed Release of Liability Agreement from your group and the ID of the person signing on behalf of the group upon entering the resort.'
+      ].join('\n');
+    }
+
+    /**
+     * A booked stay's arrival and departure. A blank or unreadable time takes the
+     * stay's usual check-in and its usual length, as the PC's Calendar does.
+     */
+    function qWindow(booked) {
+      var stay = qFindStay(booked.stay);
+      var arrives = qParseClock(booked.inTime);
+      if (arrives === null) arrives = qParseClock(stay.times[0]);
+
+      var start = qAddMinutes(qDateFromIso(booked.inDate), arrives);
+      var departs = qParseClock(booked.outTime);
+      var outDate = qDateFromIso(booked.outDate);
+
+      var end = outDate && departs !== null ? qAddMinutes(outDate, departs) : qCheckOut(stay, start);
+      return { start: start, end: end };
+    }
+
+    /** The stays a new one would run into, earliest first. A handover is not a clash. */
+    function qClashes(stays, start, end) {
+      return stays
+        .map(function (s) { return { stay: s, window: qWindow(s) }; })
+        .filter(function (s) {
+          return s.window.end > s.window.start && s.window.start < end && s.window.end > start;
+        })
+        .sort(function (a, b) { return a.window.start - b.window.start; });
+    }
+
+    function qClashLine(clashes) {
+      var first = clashes[0];
+      var more = clashes.length > 1 ? ' +' + (clashes.length - 1) : '';
+      return 'Booked: ' + first.stay.name + ', ' + qMoment(first.window.start) +
+        ' to ' + qMoment(first.window.end) + more;
+    }
+
+    // The form. undefined stays: not read yet; null: the read failed.
+    var quote = {
+      stays: undefined, bpi: '', gcash: '', holder: '',
+      custom: false, customHours: 22, lastRated: QUOTE_STAYS[0],
+      minutes: 9 * 60, timeReadable: true,
+      quotes: [], pickedId: '', paid: false
+    };
+
+    function qEl(id) { return document.getElementById(id); }
+
+    function qRated() {
+      var value = qEl('qStay').value;
+      return value === QUOTE_CUSTOM ? null : qFindStay(value);
+    }
+
+    function qStay() {
+      return qRated() || qCustomStay(qEl('qStayName').value.trim(), quote.customHours);
+    }
+
+    function qCheckIn() {
+      var date = qDateFromIso(qEl('qDate').value) || qToday();
+      return qAddMinutes(date, quote.minutes);
+    }
+
+    function qToday() {
+      var now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    function qPax() {
+      var typed = parseInt(qEl('qPax').value, 10);
+      return isNaN(typed) ? QUOTE_BASE_PAX : Math.min(QUOTE_MAX_PAX, Math.max(1, typed));
+    }
+
+    function qMoney(id) { return parseAmount(qEl(id).value) || 0; }
+
+    function qSetTimes(times, keepAny) {
+      var list = qEl('qTimes');
+      list.innerHTML = '';
+      times.forEach(function (time) {
+        var option = document.createElement('option');
+        option.value = time;
+        list.appendChild(option);
+      });
+      if (!keepAny && times.indexOf(qEl('qTime').value) < 0) qEl('qTime').value = times[0];
+    }
+
+    function qReadTime() {
+      var minutes = qParseClock(qEl('qTime').value);
+      quote.timeReadable = minutes !== null;
+      if (minutes !== null) quote.minutes = minutes;
+    }
+
+    /** A check-in the new stay also uses is kept; anything else takes its usual time. */
+    function qStayChanged() {
+      var rated = qRated();
+      var wasCustom = quote.custom;
+      quote.custom = !rated;
+
+      qEl('qCustomWrap').classList.toggle('hide', !quote.custom);
+      qEl('qOutWrap').classList.toggle('hide', !quote.custom);
+      qEl('qOutLine').classList.toggle('hide', quote.custom);
+
+      if (quote.custom) {
+        if (!wasCustom) {
+          quote.customHours = quote.lastRated.hours;
+          qSetTimes(QUOTE_STAYS[0].times, true);
+          qEl('qFee').value = '';      // no rate: the fee is typed
+        }
+        qRebuild();
+        return;
+      }
+
+      quote.lastRated = rated;
+      qSetTimes(rated.times, false);
+      qReadTime();
+      qRecalculate();
+    }
+
+    /** A custom stay's checkout typed or picked: the stay is now that long. */
+    function qCheckOutChanged() {
+      if (!quote.custom) return;
+      var minutes = qParseClock(qEl('qOutTime').value);
+      var date = qDateFromIso(qEl('qOutDate').value);
+      if (minutes === null || !date) return;
+
+      quote.customHours = (qAddMinutes(date, minutes) - qCheckIn()) / 3600000;
+      qRebuild();
+    }
+
+    /** Moves a custom stay's checkout with its check-in, leaving a time being typed alone. */
+    function qSyncCheckOut() {
+      if (!quote.custom) return;
+      var checkOut = qAddMinutes(qCheckIn(), quote.customHours * 60);
+      qEl('qOutDate').value = qIso(checkOut);
+      if (document.activeElement !== qEl('qOutTime')) qEl('qOutTime').value = qHour(checkOut);
+    }
+
+    /** Grows each message box to its text. Nothing to measure while the view is hidden. */
+    function qFitMessages() {
+      ['qMsgQuote', 'qMsgConfirm'].forEach(function (id) {
+        var box = qEl(id);
+        if (!box.offsetParent) return;
+        box.style.height = 'auto';
+        box.style.height = (box.scrollHeight + 2) + 'px';
+      });
+    }
+
+    function qRecalculate() {
+      if (!quote.custom) {
+        var fee = qFeeFor(qStay(), qCheckIn(), qPax(), qEl('qHoliday').checked, qEl('qPeak').checked);
+        qEl('qFee').value = moneyWhileTyping(String(fee));
+      }
+      qRebuild();
+    }
+
+    function qRebuild() {
+      qSyncCheckOut();
+
+      var stay = qStay();
+      var checkIn = qCheckIn();
+      var name = qEl('qName').value;
+      var pax = qPax();
+      var fee = qMoney('qFee');
+      var dp = qMoney('qDp');
+
+      qEl('qOut').textContent = qStamp(qCheckOut(stay, checkIn));
+      qEl('qMsgQuote').value = qMessage(stay, name, checkIn, pax, fee);
+      qEl('qMsgDp').textContent = qPayment(quote.bpi, quote.gcash, quote.holder);
+      qEl('qMsgConfirm').value = qConfirmation(stay, name, checkIn, pax, fee - dp);
+      qFitMessages();
+
+      if (quote.stays === null) {
+        qEl('qClash').textContent = 'Could not check bookings';
+      } else {
+        var clashes = qClashes(quote.stays || [], checkIn, qCheckOut(stay, checkIn));
+        qEl('qClash').textContent = clashes.length ? qClashLine(clashes) : '';
+      }
+
+      // Copy only while the message is fit to send.
+      var complete = !quote.custom || (stay.name.length > 0 && quote.customHours > 0);
+      var quoted = fee > 0 && quote.timeReadable && complete;
+      qEl('qCopyQuote').disabled = !quoted;
+      qEl('qCopyConfirm').disabled = !(quoted && dp > 0 && dp <= fee);
+      qEl('qCopyDp').disabled =
+        !(String(quote.bpi).trim() && String(quote.gcash).trim() && String(quote.holder).trim());
+    }
+
+    function clearQuote() {
+      qEl('qName').value = '';
+      qEl('qStay').value = QUOTE_STAYS[0].name;
+      qEl('qStayName').value = '';
+      qEl('qDate').value = qIso(qToday());
+      qEl('qTime').value = QUOTE_STAYS[0].times[0];
+      qEl('qPax').value = String(QUOTE_BASE_PAX);
+      qEl('qHoliday').checked = false;
+      qEl('qPeak').checked = false;
+      qEl('qSaved').value = '';
+      quote.pickedId = '';
+      qEl('qRemove').disabled = true;
+      qResetPayment();
+      qStayChanged();
+    }
+
+    /** The bookings and account numbers, read again on every visit to the view. */
+    function loadQuote() {
+      qRebuild();
+      call('getQuoteBootstrap', [], true).then(function (data) {
+        quote.stays = data.stays;
+        quote.bpi = data.bpi;
+        quote.gcash = data.gcash;
+        quote.holder = data.holder || '';
+        quote.quotes = data.quotes || [];
+        qListQuotes(quote.pickedId);
+        qRebuild();
+      }).catch(function () {
+        quote.stays = null;
+        qRebuild();
+      });
+    }
+
+    // ------------------------------------------------- saved quotes and Paid
+    //
+    // As on the PC: the saved list is shared through the Quotes tab, and Paid adds
+    // the booking through the same addBooking the Bookings view uses. The receipt
+    // stays on the PC: its background carries the signature, and this page is public.
+
+    function qPicked() {
+      var id = quote.pickedId;
+      return quote.quotes.filter(function (q) { return q.id === id; })[0] || null;
+    }
+
+    function qListQuotes(selectId) {
+      var box = qEl('qSaved');
+      box.innerHTML = '';
+      var none = document.createElement('option');
+      none.value = '';
+      none.textContent = '';
+      box.appendChild(none);
+
+      quote.quotes.forEach(function (q) {
+        var option = document.createElement('option');
+        option.value = q.id;
+        var when = qDateFromIso(q.checkIn.slice(0, 10));
+        option.textContent = q.name + ' - ' + Q_MONTHS[when.getMonth()].slice(0, 3) + ' ' + when.getDate();
+        box.appendChild(option);
+      });
+
+      var keep = quote.quotes.some(function (q) { return q.id === selectId; });
+      quote.pickedId = keep ? selectId : '';
+      box.value = quote.pickedId;
+      qEl('qRemove').disabled = !quote.pickedId;
+    }
+
+    /** A different name is a different guest: Save then adds rather than replaces. */
+    function qReleaseIfRenamed() {
+      var picked = qPicked();
+      if (!picked) return;
+      if (picked.name.trim().toLowerCase() === qEl('qName').value.trim().toLowerCase()) return;
+      quote.pickedId = '';
+      qEl('qSaved').value = '';
+      qEl('qRemove').disabled = true;
+    }
+
+    function qLoadSaved(q) {
+      var rated = q.hours === null ? QUOTE_STAYS.filter(function (s) {
+        return s.name.toLowerCase() === String(q.stay).trim().toLowerCase();
+      })[0] : null;
+
+      qEl('qName').value = q.name;
+      // The stay before the time: changing the stay resets it to that stay's usual one.
+      qEl('qStay').value = rated ? rated.name : QUOTE_CUSTOM;
+      qEl('qStayName').value = rated ? '' : q.stay;
+      qStayChanged();
+      if (!rated) quote.customHours = q.hours || quote.customHours;
+
+      qEl('qDate').value = q.checkIn.slice(0, 10);
+      var minutes = qParseClock(q.checkIn.slice(11));
+      qEl('qTime').value = qHour(qAddMinutes(qToday(), minutes === null ? 9 * 60 : minutes));
+      qReadTime();
+      qEl('qPax').value = String(q.pax);
+      qEl('qHoliday').checked = !!q.holiday;
+      qEl('qPeak').checked = !!q.peak;
+      qResetPayment();
+      qRecalculate();
+
+      // Last: everything above recalculates it, and a typed-over fee must survive.
+      qEl('qFee').value = moneyWhileTyping(String(q.fee));
+      qRebuild();
+    }
+
+    /** The form as a quote, or null with the reason said, if it is not one yet. */
+    function qReadQuote() {
+      var name = qEl('qName').value.trim();
+      if (!name) { say('Enter a name.', true); return null; }
+      if (quote.custom && !qEl('qStayName').value.trim()) { say('Enter a stay.', true); return null; }
+      if (quote.custom && !(quote.customHours > 0)) { say('Checkout is before check-in.', true); return null; }
+      if (!quote.timeReadable) { say('Enter a time.', true); return null; }
+
+      var fee = qMoney('qFee');
+      if (fee <= 0) { say('Enter a fee.', true); return null; }
+
+      var checkIn = qCheckIn();
+      return {
+        id: '',
+        name: name,
+        checkIn: qIso(checkIn) + 'T' + qPad(checkIn.getHours()) + ':' + qPad(checkIn.getMinutes()),
+        pax: qPax(),
+        holiday: qEl('qHoliday').checked,
+        fee: fee,
+        stay: qStay().name,
+        peak: qEl('qPeak').checked,
+        hours: quote.custom ? quote.customHours : null
+      };
+    }
+
+    /** Asks before saving dates that overlap a booking; the clash can be deliberate. */
+    function qConfirmFree() {
+      if (!quote.stays) return true;
+      var checkIn = qCheckIn();
+      var clashes = qClashes(quote.stays, checkIn, qCheckOut(qStay(), checkIn));
+      return !clashes.length || confirm(qClashLine(clashes) + '\n\nThe house would be double-booked. Do you wish to continue?');
+    }
+
+    function qSave() {
+      var q = qReadQuote();
+      if (!q) return;
+      q.id = quote.pickedId;      // a picked quote is updated, not saved twice
+      if (!qConfirmFree()) { say('Not saved - the dates clash.', true); return; }
+
+      call('saveQuote', [q]).then(function (result) {
+        quote.quotes = result.quotes;
+        qListQuotes(result.id);
+        say('Saved');
+      }).catch(failed);
+    }
+
+    function qRemove() {
+      var id = quote.pickedId;
+      if (!id) return;
+      call('removeQuote', [id]).then(function (quotes) {
+        quote.quotes = quotes;
+        qListQuotes('');
+        say('Removed');
+      }).catch(failed);
+    }
+
+    /** Clears the payment; moving on from a paid quote reads the book again. */
+    function qResetPayment() {
+      qEl('qDp').value = '';
+      qEl('qMode').value = '';
+      qEl('qDpDate').value = qIso(qToday());
+
+      if (!quote.paid) return;
+      quote.paid = false;
+      qEl('qPaid').disabled = false;
+      loadQuote();
+    }
+
+    /** "9:00 PM", the bookings sheet's own way of writing a time. */
+    function qSheetTime(date) {
+      var hours = date.getHours();
+      return (hours % 12 || 12) + ':' + qPad(date.getMinutes()) + ' ' + (hours < 12 ? 'AM' : 'PM');
+    }
+
+    function qPaid() {
+      var q = qReadQuote();
+      if (!q) return;
+
+      var dp = qMoney('qDp');
+      if (dp <= 0) { say('Enter the DP.', true); return; }
+      if (dp > q.fee) { say('DP is over the fee.', true); return; }
+      var mode = qEl('qMode').value;
+      if (!mode) { say('Pick a mode.', true); return; }
+      var dpDate = qEl('qDpDate').value || qIso(qToday());
+
+      var stay = qStay();
+      var checkIn = qCheckIn();
+      var checkOut = qCheckOut(stay, checkIn);
+      var payload = {
+        ar: '', name: q.name, stay: stay.name, remarks: '', pax: String(q.pax),
+        inDate: qIso(checkIn), inTime: qSheetTime(checkIn),
+        outDate: qIso(checkOut), outTime: qSheetTime(checkOut),
+        totalCost: q.fee, dpDate: dpDate, dp: dp, dpMode: mode, fp: '', fpMode: ''
+      };
+      var savedId = quote.pickedId;
+
+      call('addBooking', [payload]).catch(function (error) {
+        // The same server-side clash guard as the Bookings form, asked the same way.
+        var clash = parseClash(error);
+        if (!clash) throw error;
+        if (!confirmClash(clash)) return null;
+        payload.allowClash = true;
+        return call('addBooking', [payload]);
+      }).then(function (result) {
+        if (!result) { say('Not added - the dates clash.', true); return; }
+
+        // Stays off until Clear or another quote, so it cannot be added twice.
+        quote.paid = true;
+        qEl('qPaid').disabled = true;
+        book.loaded = false;      // the Bookings view reads the new row next visit
+
+        var entry = ((result.ledger && result.ledger.entries) || []).filter(function (e) {
+          return String(e.ar) === String(result.ar);
+        })[0];
+        var added = (entry ? 'Added as No. ' + entry.no + ', AR ' : 'Added, AR ') + result.ar;
+        say(added);
+        qEl('qMsgConfirm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+
+        // Separate from the add: the booking is in, so a failure here must not
+        // read as "not added" and invite adding it twice.
+        if (savedId) {
+          call('removeQuote', [savedId], true).then(function (quotes) {
+            quote.quotes = quotes;
+            qListQuotes('');
+          }).catch(function () { say(added + ' - still in Saved', true); });
+        }
+      }).catch(failed);
+    }
+
+    function initQuote() {
+      var stay = qEl('qStay');
+      QUOTE_STAYS.forEach(function (s) {
+        var option = document.createElement('option');
+        option.value = s.name;
+        option.textContent = s.name;
+        stay.appendChild(option);
+      });
+      var custom = document.createElement('option');
+      custom.value = QUOTE_CUSTOM;
+      custom.textContent = 'Custom';
+      stay.appendChild(custom);
+
+      stay.addEventListener('change', qStayChanged);
+      qEl('qStayName').addEventListener('input', qRebuild);
+      qEl('qName').addEventListener('input', function () { qReleaseIfRenamed(); qRebuild(); });
+      qEl('qDate').addEventListener('change', qRecalculate);
+      qEl('qTime').addEventListener('input', function () { qReadTime(); qRecalculate(); });
+      // Tidies what was typed, or puts back the last good time.
+      qEl('qTime').addEventListener('blur', function () { qEl('qTime').value = qHour(qCheckIn()); });
+      qEl('qOutDate').addEventListener('change', qCheckOutChanged);
+      qEl('qOutTime').addEventListener('input', qCheckOutChanged);
+      qEl('qOutTime').addEventListener('blur', qSyncCheckOut);
+      qEl('qPax').addEventListener('input', qRecalculate);
+      qEl('qHoliday').addEventListener('change', qRecalculate);
+      qEl('qPeak').addEventListener('change', qRecalculate);
+      qEl('qFee').addEventListener('input', qRebuild);
+      qEl('qDp').addEventListener('input', qRebuild);
+      qEl('qClear').onclick = clearQuote;
+
+      qEl('qCopyQuote').onclick = function () { copyText(qEl('qMsgQuote').value, 'Quote'); };
+      qEl('qMsgQuote').addEventListener('input', qFitMessages);
+      qEl('qMsgConfirm').addEventListener('input', qFitMessages);
+      qEl('qCopyDp').onclick = function () { copyText(qEl('qMsgDp').textContent, 'DP'); };
+      qEl('qCopyConfirm').onclick = function () { copyText(qEl('qMsgConfirm').value, 'Confirm'); };
+
+      var mode = qEl('qMode');
+      ['', 'GCash', 'BPI', 'Cash'].forEach(function (name) {
+        var option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        mode.appendChild(option);
+      });
+
+      qEl('qSaved').addEventListener('change', function () {
+        quote.pickedId = qEl('qSaved').value;
+        qEl('qRemove').disabled = !quote.pickedId;
+        var picked = qPicked();
+        if (picked) qLoadSaved(picked);
+      });
+      qEl('qRemove').onclick = qRemove;
+      qEl('qSave').onclick = qSave;
+      qEl('qPaid').onclick = qPaid;
+
+
+      clearQuote();
+    }
+
+    // ------------------------------------------------------- calculator
+    //
+    // The same table as the PC's Calculator tab (GuestQuote.RateTable): weekday,
+    // weekend and peak side by side. A senior's or PWD's 20% is of the rate for
+    // one pax, the base rate over the 10 it covers, peak's surcharge included.
+
+    var QUOTE_SENIOR_DISCOUNT = 0.2;
+
+    function qRound2(value) { return Math.round(value * 100) / 100; }
+
+    function qRateTable(stay, pax, seniors) {
+      pax = Math.max(1, pax);
+      var excessPax = Math.max(0, pax - QUOTE_BASE_PAX);
+      var count = Math.min(Math.max(0, seniors), pax);
+
+      function column(name, rate) {
+        var excess = excessPax * QUOTE_EXCESS_PER_PAX;
+        var perPax = qRound2(rate / QUOTE_BASE_PAX);
+        var each = qRound2(perPax * QUOTE_SENIOR_DISCOUNT);
+        var discount = qRound2(each * count);
+        return {
+          name: name, rate: rate, excessPax: excessPax, excess: excess, perPax: perPax,
+          seniors: count, discountEach: each, discount: discount,
+          total: qRound2(rate + excess - discount)
+        };
+      }
+
+      return [
+        column('Weekday', stay.weekday),
+        column('Weekend', stay.weekend),
+        column('Peak', stay.weekend + QUOTE_PEAK)
+      ];
+    }
+
+    /** The Calculator's Copy, as the PC's GuestQuote.RateMessage has it. */
+    function qRateMessage(stay, pax, column) {
+      var opening = stay.name === 'Day' ? 'For day stay from 9AM to 6PM'
+        : stay.name === 'Night' ? 'For night stay from 8PM to 7AM the next day'
+        : 'For ' + stay.name + ' stay';
+      var seniors = column.seniors > 0 ? ' with ' + column.seniors + ' senior' : '';
+      var line = opening + ', ang fee po for ' + Math.max(1, pax) + ' pax' + seniors + ' is P' + qPhp(column.total);
+      // The note only matters once the group is more than the room sleeps.
+      return stay.name === 'Day' || pax <= QUOTE_BASE_PAX ? line : line + '\nNote lang po na 1 room lang kami with 10 sleeping capacity';
+    }
+
+    var calcShown = null;
+
+    function readCount(id, fallback) {
+      var typed = parseInt(document.getElementById(id).value, 10);
+      return isNaN(typed) ? fallback : Math.min(QUOTE_MAX_PAX, Math.max(0, typed));
+    }
+
+    function renderCalc() {
+      var stay = qFindStay(document.getElementById('cStay').value);
+      var pax = readCount('cPax', QUOTE_BASE_PAX) || 1;
+      var columns = qRateTable(stay, pax, readCount('cSeniors', 0));
+      calcShown = { stay: stay, pax: pax, columns: columns };
+      var peso = function (amount) { return '₱' + qPhp(amount); };
+
+      function row(label, value, total) {
+        return '<tr' + (total ? ' class="total"' : '') + '><th>' + label + '</th>' +
+          columns.map(function (c) { return '<td>' + value(c) + '</td>'; }).join('') + '</tr>';
+      }
+
+      document.getElementById('cTable').innerHTML =
+        '<thead><tr><th></th>' + columns.map(function (c) { return '<th>' + c.name + '</th>'; }).join('') + '</tr></thead>' +
+        '<tbody>' +
+        row('Rate', function (c) { return peso(c.rate); }) +
+        row('Excess (' + columns[0].excessPax + ')', function (c) { return peso(c.excess); }) +
+        row('Per pax', function (c) { return peso(c.perPax); }) +
+        row('20% each', function (c) { return peso(c.discountEach); }) +
+        row('Discount (' + columns[0].seniors + ')', function (c) { return c.discount > 0 ? '−' + peso(c.discount) : peso(0); }) +
+        row('Total', function (c) { return peso(c.total); }, true) +
+        '<tr class="copy"><th></th>' + columns.map(function (c, i) {
+          return '<td><button type="button" class="primary" data-col="' + i + '">Copy</button></td>';
+        }).join('') + '</tr>' +
+        '</tbody>';
+    }
+
+    function initCalc() {
+      var stay = document.getElementById('cStay');
+      QUOTE_STAYS.forEach(function (s) {
+        var option = document.createElement('option');
+        option.value = s.name;
+        option.textContent = s.name;
+        stay.appendChild(option);
+      });
+      stay.addEventListener('change', renderCalc);
+      document.getElementById('cPax').addEventListener('input', renderCalc);
+      document.getElementById('cSeniors').addEventListener('input', renderCalc);
+      document.getElementById('cTable').addEventListener('click', function (event) {
+        var button = event.target.closest('button[data-col]');
+        if (!button || !calcShown) return;
+        var column = calcShown.columns[Number(button.getAttribute('data-col'))];
+        copyText(qRateMessage(calcShown.stay, calcShown.pax, column), column.name);
+      });
+      renderCalc();
+    }
+
+    // ------------------------------------------------------- replies
+
+    var replies = { list: [], loaded: false, editing: '' };
+
+    function renderReplies() {
+      var host = document.getElementById('list');
+      host.innerHTML = '';
+
+      replies.list.forEach(function (reply) {
+        var card = document.createElement('div');
+        card.className = 'reply';
+        card.innerHTML =
+          '<h3>' + escapeHtml(reply.name) + '</h3>' +
+          '<div class="text">' + escapeHtml(reply.text) + '</div>' +
+          (reply.picture ? '<img class="rimg" alt="" style="display:none">' : '') +
+          '<div class="buttons">' +
+          '<button type="button" class="primary">Copy</button>' +
+          (reply.picture
+            ? '<button type="button" class="share hide">Share</button><button type="button" class="pick">Pick</button>'
+            : '') +
+          '<button type="button" class="edit">Edit</button>' +
+          '</div>';
+
+        card.querySelector('.primary').onclick = function () { copyText(reply.text, reply.name); };
+        card.querySelector('.edit').onclick = function () { openReplyForm(reply); };
+
+        if (reply.picture) {
+          var picture = card.querySelector('.rimg');
+          var share = card.querySelector('.share');
+          card.querySelector('.pick').onclick = function () { pickReplyPicture(reply); };
+          share.onclick = function () { shareReplyPicture(reply); };
+
+          // Shown, with Share, once a picture has been picked on this phone.
+          loadReplyPicture(reply.name).then(function (blob) {
+            if (!blob) return;
+            picture.src = URL.createObjectURL(blob);
+            picture.style.display = '';
+            share.classList.remove('hide');
+          });
+        }
+
+        host.appendChild(card);
+      });
+    }
+
+    // Pictures for replies like Map, picked once from the gallery and kept on this
+    // phone only, so they never sit on the public GitHub page.
+    var replyPictures = {};
+
+    function pictureStore(mode) {
+      return new Promise(function (resolve, reject) {
+        var open = indexedDB.open('balai-haraya', 1);
+        open.onupgradeneeded = function () { open.result.createObjectStore('pictures'); };
+        open.onsuccess = function () { resolve(open.result.transaction('pictures', mode).objectStore('pictures')); };
+        open.onerror = function () { reject(open.error); };
+      });
+    }
+
+    function loadReplyPicture(name) {
+      if (replyPictures[name]) return Promise.resolve(replyPictures[name]);
+      return pictureStore('readonly').then(function (store) {
+        return new Promise(function (resolve) {
+          var get = store.get(name);
+          get.onsuccess = function () {
+            if (get.result) replyPictures[name] = get.result;
+            resolve(get.result || null);
+          };
+          get.onerror = function () { resolve(null); };
+        });
+      }).catch(function () { return null; });
+    }
+
+    function saveReplyPicture(name, blob) {
+      replyPictures[name] = blob;
+      return pictureStore('readwrite').then(function (store) {
+        return new Promise(function (resolve, reject) {
+          var put = store.put(blob, name);
+          put.onsuccess = function () { resolve(); };
+          put.onerror = function () { reject(put.error); };
+        });
+      });
+    }
+
+    function pickReplyPicture(reply) {
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+
+        // Copied out of the gallery, so the kept picture does not depend on it.
+        file.arrayBuffer().then(function (bytes) {
+          return saveReplyPicture(reply.name, new Blob([bytes], { type: file.type || 'image/jpeg' }));
+        }).then(function () {
+          say(reply.name + ' picture kept');
+        }).catch(function () {
+          say(reply.name + ' picture kept until the app closes', true);
+        }).then(renderList);
+      };
+      input.click();
+    }
+
+    /** Straight into Messenger through the share menu. */
+    function shareReplyPicture(reply) {
+      var blob = replyPictures[reply.name];
+      if (!blob) { say('Pick the picture first', true); return; }
+
+      var type = blob.type || 'image/jpeg';
+      var extension = type === 'image/png' ? '.png' : type === 'image/webp' ? '.webp' : '.jpg';
+      var file = new File([blob], reply.name.toLowerCase() + extension, { type: type });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file] }).catch(function () { /* closed without sharing */ });
+      } else {
+        say('Sharing pictures is not supported here', true);
+      }
+    }
+    /**
+     * The old select-and-copy first: it runs inside the tap, and still works
+     * where the page sits in a frame that the clipboard API is not allowed in.
+     */
+    function copyText(text, name) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '0';
+      area.style.left = '0';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.focus();
+      area.select();
+      area.setSelectionRange(0, text.length);
+
+      var copied = false;
+      try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+      document.body.removeChild(area);
+
+      if (copied) { say(name + ' copied'); return; }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          function () { say(name + ' copied'); },
+          function () { say('Copy blocked', true); });
+      } else {
+        say('Copy blocked', true);
+      }
+    }
+
+    /** Null opens a blank form for a new reply. */
+    function openReplyForm(reply) {
+      replies.editing = reply ? reply.name : '';
+      document.getElementById('replyTitle').textContent = reply ? reply.name : 'New reply';
+      document.getElementById('replyName').value = reply ? reply.name : '';
+      document.getElementById('replyText').value = reply ? reply.text : '';
+      document.getElementById('replyDelete').classList.toggle('hide', !reply);
+      document.getElementById('replyScrim').classList.add('on');
+      if (!reply) document.getElementById('replyName').focus();
+    }
+
+    function closeReplyForm() {
+      document.getElementById('replyScrim').classList.remove('on');
+      replies.editing = '';
+    }
+
+    function submitReplyForm(event) {
+      event.preventDefault();
+      var original = replies.editing;
+      var name = document.getElementById('replyName').value.trim();
+      var text = document.getElementById('replyText').value;
+      if (!name) { say('Name needed', true); return; }
+
+      call('saveReply', [original, text, name]).then(function (list) {
+        // A renamed reply keeps the picture kept for it on this phone.
+        if (original && original !== name) {
+          loadReplyPicture(original).then(function (blob) {
+            if (blob) return saveReplyPicture(name, blob).then(renderList);
+          }).catch(function () { /* the picture can be picked again */ });
+        }
+        replies.list = list;
+        closeReplyForm();
+        renderList();
+        say(original ? 'Saved' : name + ' added');
+      }).catch(failed);
+    }
+
+    function deleteReplyForm() {
+      var name = replies.editing;
+      if (!name || !confirm('Delete ' + name + '?')) return;
+
+      call('deleteReply', [name]).then(function (list) {
+        replies.list = list;
+        closeReplyForm();
+        renderList();
+        say(name + ' deleted');
+      }).catch(failed);
+    }
+
+    // ------------------------------------------------------- wiring
+
+    document.getElementById('add').onclick = function () {
+      if (view === 'book') openBookForm(null);
+      else if (view === 'reply') openReplyForm(null);
+      else openForm(null);
+    };
+
+    document.getElementById('viewDisb').onclick = function () { switchView('disb'); };
+    document.getElementById('viewBook').onclick = function () { switchView('book'); };
+    document.getElementById('viewSum').onclick = function () { switchView('sum'); };
+    document.getElementById('viewReply').onclick = function () { switchView('reply'); };
+    document.getElementById('viewQuote').onclick = function () { switchView('quote'); };
+    document.getElementById('viewCalc').onclick = function () { switchView('calc'); };
+    initCalc();
+    initQuote();
+    document.getElementById('replyCancel').onclick = closeReplyForm;
+    document.getElementById('replyDelete').onclick = deleteReplyForm;
+    document.getElementById('replyForm').onsubmit = submitReplyForm;
+    document.getElementById('replyScrim').onclick = function (event) {
+      if (event.target.id === 'replyScrim') closeReplyForm();
+    };
+    document.getElementById('bookCancel').onclick = closeBookForm;
+    document.getElementById('bookForm').onsubmit = submitBookForm;
+    document.getElementById('bookScrim').onclick = function (event) {
+      if (event.target.id === 'bookScrim') closeBookForm();
+    };
+
+    wireOther('bStay', 'bStayOtherWrap');
+    wireOther('bInTime', 'bInTimeOtherWrap');
+    wireOther('bOutTime', 'bOutTimeOtherWrap');
+
+    ['bTotal', 'bDp', 'bFp', 'qFee', 'qDp'].forEach(function (id) {
+      document.getElementById(id).addEventListener('input', function () {
+        var caret = this.selectionStart;
+        var before = this.value;
+        var digitsRight = 0;
+        for (var i = caret; i < before.length; i++) {
+          if (before.charAt(i) >= '0' && before.charAt(i) <= '9') digitsRight++;
+        }
+        var after = moneyWhileTyping(before);
+        if (after === before) return;
+        this.value = after;
+        var index = after.length, seen = 0;
+        while (index > 0 && seen < digitsRight) {
+          index--;
+          if (after.charAt(index) >= '0' && after.charAt(index) <= '9') seen++;
+        }
+        this.setSelectionRange(index, index);
+      });
+    });
+    document.getElementById('formCancel').onclick = closeForm;
+    document.getElementById('form').onsubmit = submitForm;
+    document.getElementById('scrim').onclick = function (event) {
+      if (event.target.id === 'scrim') closeForm();
+    };
+
+    // S.I. numbers are numeric; anything else is dropped as it is typed.
+    document.getElementById('fSiNo').addEventListener('input', function () {
+      var digits = this.value.replace(/\D/g, '');
+      if (digits === this.value) return;
+
+      var caret = this.selectionStart - (this.value.length - digits.length);
+      this.value = digits;
+      this.setSelectionRange(Math.max(0, caret), Math.max(0, caret));
+    });
+
+    // Live peso formatting, keeping the caret in the same place among the digits.
+    document.getElementById('fAmount').addEventListener('input', function () {
+      var box = this;
+      var before = box.value;
+      var caret = box.selectionStart;
+
+      var digitsRight = 0;
+      for (var i = caret; i < before.length; i++) {
+        if (before.charAt(i) >= '0' && before.charAt(i) <= '9') digitsRight++;
+      }
+
+      var after = moneyWhileTyping(before);
+      if (after === before) return;
+      box.value = after;
+
+      var index = after.length, seen = 0;
+      while (index > 0 && seen < digitsRight) {
+        index--;
+        if (after.charAt(index) >= '0' && after.charAt(index) <= '9') seen++;
+      }
+      box.setSelectionRange(index, index);
+    });
+
+    /**
+     * position:fixed anchors to the layout viewport, which pinch-zooming moves
+     * out from under the screen. visualViewport is what is actually visible, so
+     * the button is placed against that and scaled back to a constant size.
+     */
+    function pinAddButton() {
+      var vv = window.visualViewport;
+      var fab = document.getElementById('add');
+      if (!vv || !fab) return;
+
+      var scale = vv.scale || 1;
+
+      // Unzoomed, plain CSS puts it in the corner correctly and copes with the
+      // address bar on its own. Overriding that was mispositioning the button.
+      if (scale <= 1.01) {
+        fab.style.left = '';
+        fab.style.top = '';
+        fab.style.right = '';
+        fab.style.bottom = '';
+        fab.style.transform = '';
+        return;
+      }
+
+      // Zoomed in, follow what is actually on screen.
+      var size = 50 / scale;
+      var margin = 16 / scale;
+
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+      fab.style.left = (vv.offsetLeft + vv.width - size - margin) + 'px';
+      fab.style.top = (vv.offsetTop + vv.height - size - margin) + 'px';
+      fab.style.transformOrigin = 'top left';
+      fab.style.transform = 'scale(' + (1 / scale) + ')';
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', pinAddButton);
+      window.visualViewport.addEventListener('scroll', pinAddButton);
+      window.addEventListener('scroll', pinAddButton);
+      pinAddButton();
+    }
+
+    // ------------------------------------------------------- lock screen
+
+    function showLock(message) {
+      document.getElementById('lockError').textContent = message || '';
+      document.getElementById('lock').classList.remove('off');
+      document.getElementById('pin').value = '';
+      setTimeout(function () { document.getElementById('pin').focus(); }, 50);
+    }
+
+    function hideLock() {
+      document.getElementById('lock').classList.add('off');
+    }
+
+    document.getElementById('lockForm').onsubmit = function (event) {
+      event.preventDefault();
+      var pin = document.getElementById('pin').value.trim();
+      if (!pin) return;
+
+      document.getElementById('lockError').textContent = '';
+      signIn(pin).then(start).catch(refused);
+    };
+
+    /**
+     * Back to the lock screen in the server's own words - "Wrong PIN. 3 attempts
+     * left." or how long signing in is locked for - since a lockout refuses the
+     * right PIN as well and must not be passed off as a wrong one.
+     */
+    function refused(error) {
+      var reason = String((error && error.message) || 'Could not sign in.')
+        .replace(/^(Exception|Error):\s*/i, '');
+      showLock(reason);
+      return reason;
+    }
+
+    // ------------------------------------------------------- start
+
+    function start() {
+      if (!storedKey()) {
+        // A device set up before keys existed still holds the PIN. It is traded
+        // in here, once, so nobody has to type it again after the update.
+        var pin = oldPin();
+        if (!pin) { showLock(''); return; }
+
+        signIn(pin).then(start).catch(function (error) {
+          // Kept through a lockout or a dropped connection, to try again on
+          // the next visit; only a PIN the server says is wrong is thrown away.
+          if (/^wrong pin/i.test(refused(error))) forgetOldPin();
+        });
+        return;
+      }
+
+      call('getBootstrap', []).then(function (data) {
+        state.today = data.today;
+        state.categories = data.categories;
+
+        var type = document.getElementById('fType');
+        type.innerHTML = '';
+        data.categories.forEach(function (name) {
+          var option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          type.appendChild(option);
+        });
+
+        state.months = data.months;
+        state.month = data.selected;
+        applyLedger({ months: data.months, ledger: data.ledger });
+        hideLock();
+      }).catch(function (error) {
+        // showLock has already been raised for a signed-out device by call().
+        if (!SIGNED_OUT.test((error && error.message) || '')) failed(error);
+      });
+    }
+
+    start();
+
+    // What lets the phone offer "Install app". A failure only means no install.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* not installable */ });
+    }
+
+    // ------------------------------------------------------- update check
+    //
+    // Android brings the installed app back from memory as it was, so a page
+    // opened before an upload stays old. On coming back, GitHub's version tag
+    // for the page is compared with the one it had at start; a change offers
+    // Update rather than reloading, so a half-typed quote is never lost.
+
+    var pageTag = null;
+    var lastTagCheck = 0;
+
+    function readPageTag() {
+      return fetch(location.href.split('#')[0], { method: 'HEAD', cache: 'no-store' })
+        .then(function (response) {
+          return response.ok
+            ? response.headers.get('ETag') || response.headers.get('Last-Modified')
+            : null;
+        })
+        .catch(function () { return null; });   // offline: try again next time
+    }
+
+    function checkForUpdate() {
+      if (Date.now() - lastTagCheck < 30000) return;
+      lastTagCheck = Date.now();
+
+      readPageTag().then(function (tag) {
+        if (!tag) return;
+        if (pageTag === null) { pageTag = tag; return; }
+        if (tag !== pageTag) document.getElementById('updateBar').classList.remove('hide');
+      });
+    }
+
+    document.getElementById('updateBar').onclick = function () { location.reload(); };
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') checkForUpdate();
+    });
+    checkForUpdate();
+  </script>
+</body>
+
+</html>
