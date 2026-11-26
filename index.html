@@ -226,6 +226,9 @@
       margin-bottom: 10px;
     }
     #replyText { min-height: 280px; }
+    #tplText { min-height: 340px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .chips button { padding: 6px 10px; font-size: 13px; }
 
     /* A newer page is on GitHub. Left of the + button, above everything but forms. */
     .updatebar {
@@ -539,17 +542,17 @@
       <div class="reply">
         <h3>Quote</h3>
         <textarea class="qmsg" id="qMsgQuote" spellcheck="false"></textarea>
-        <div class="buttons"><button type="button" class="primary" id="qCopyQuote">Copy</button></div>
+        <div class="buttons"><button type="button" class="primary" id="qCopyQuote">Copy</button><button type="button" id="qTplQuote">Template</button></div>
       </div>
       <div class="reply">
         <h3>DP</h3>
         <div class="text" id="qMsgDp"></div>
-        <div class="buttons"><button type="button" class="primary" id="qCopyDp">Copy</button></div>
+        <div class="buttons"><button type="button" class="primary" id="qCopyDp">Copy</button><button type="button" id="qTplDp">Template</button></div>
       </div>
       <div class="reply">
         <h3>Confirm</h3>
         <textarea class="qmsg" id="qMsgConfirm" spellcheck="false"></textarea>
-        <div class="buttons"><button type="button" class="primary" id="qCopyConfirm">Copy</button></div>
+        <div class="buttons"><button type="button" class="primary" id="qCopyConfirm">Copy</button><button type="button" id="qTplConfirm">Template</button></div>
       </div>
     </div>
   </main>
@@ -618,6 +621,19 @@
       <div class="buttons">
         <button type="button" id="bookCancel">Cancel</button>
         <button type="submit" class="primary" id="bookSave">Add</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="scrim" id="tplScrim">
+    <form class="sheet" id="tplForm">
+      <h2 id="tplTitle">Template</h2>
+      <div class="chips" id="tplFields"></div>
+      <label>Text<textarea id="tplText" spellcheck="false"></textarea></label>
+      <div class="buttons">
+        <button type="button" id="tplDefault">Default</button>
+        <button type="button" id="tplCancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
       </div>
     </form>
   </div>
@@ -1848,42 +1864,23 @@
       'August', 'September', 'October', 'November', 'December'];
     var Q_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    var QUOTE_TERMS = [
-      '',
-      '',
-      'To secure your slot, we require a 50% downpayment to officially block your chosen date. Please note that we follow a \'first-pay, first-reserved\' basis.',
-      '',
-      'The remaining 50% balance must be settled on or before your stay.',
-      '',
-      'NON-refundable',
-      '7 days before your date, no show, early check out',
-      '',
-      'REBOOKABLE',
-      'at least 7 days with fee of P1000',
-      '',
-      'REFUNDABLE',
-      'at least 8 days before the date of reservation with fee of P2000',
-      '',
-      'CLEANLINESS POLICY',
-      'Guests are expected to leave the property in a tidy state. A fee of P350 will be charged if the place is left excessively messy (e.g., unwashed dishes or scattered trash).',
-      '',
-      'CAPACITY & BED SETUP',
-      'We can accommodate up to 20 pax, but please note that the room can only accommodate 10 pax. We have 2 double beds and 3 foldable beds that can be set up for night stays and 22hrs stay bookings.',
-      '',
-      'KARAOKE HOURS',
-      'Karaoke is allowed until 12MN only. Please observe quiet hours after this time to maintain a peaceful environment for everyone.',
-      '',
-      'PET POLICY',
-      'To ensure the safety and comfort of all guests, pets are no longer permitted at the resort.',
-      '',
-      'PROHIBITED ACTIVITIES AND ILLEGAL SUBSTANCES',
-      'Illegal drugs, prohibited substances, and other unlawful materials are not allowed in the resort, and no illegal activity or unlawful conduct is permitted within the resort. This applies to all members of the group.',
-      '',
-      'IMPORTANT NOTE',
-      'To finalize your check-in, we require a signed Release of Liability Agreement from your group and the ID of the person signing on behalf of the group before entering the resort.',
-      '',
-      'Kindly let us know if you want to proceed with the booking. Thank you.'
-    ].join('\n');
+    // The wording of the three messages is not in this page: it comes from the
+    // script after the PIN (quote.templates) and is edited with Template, so
+    // changing it never needs a GitHub upload. See TEMPLATE_DEFAULTS in Code.gs.
+    var Q_TEMPLATE_FIELDS = {
+      quote: ['greeting', 'name', 'stay', 'period', 'pax', 'fee'],
+      dp: ['holder', 'bpi', 'gcash'],
+      confirm: ['greeting', 'name', 'checkin', 'checkout', 'pax', 'balance']
+    };
+    var Q_TEMPLATE_TITLES = { quote: 'Quote', dp: 'DP', confirm: 'Confirm' };
+
+    /** Puts each value in place of its {field}; braces round anything else stay as typed. */
+    function qFill(template, values) {
+      return String(template || '').replace(/\{(\w+)\}/g, function (whole, key) {
+        var value = values[key.toLowerCase()];
+        return value === undefined ? whole : String(value);
+      });
+    }
 
     function qPad(n) { return (n < 10 ? '0' : '') + n; }
 
@@ -1991,8 +1988,14 @@
         ? 'on ' + qDay(checkIn) + ' (' + qHour(checkIn) + ' to ' + qHour(checkOut) + ')'
         : 'from ' + qDay(checkIn) + ' (' + qHour(checkIn) + ') to ' + qDay(checkOut) + ' (' + qHour(checkOut) + ')';
 
-      return qGreeting(name) + ', for ' + stay.phrase + ' ' + period + ', ' +
-        'the total fee for ' + pax + ' pax is Php ' + qPhp(fee) + '.' + QUOTE_TERMS;
+      return qFill(quote.templates && quote.templates.quote, {
+        greeting: qGreeting(name),
+        name: qFirstName(name),
+        stay: stay.phrase,
+        period: period,
+        pax: pax,
+        fee: qPhp(fee)
+      });
     }
 
     function qAccount(number) {
@@ -2002,41 +2005,23 @@
     // The account holder's name comes from the script after the PIN, like the
     // numbers: this page is public, so nothing personal is written into it.
     function qPayment(bpi, gcash, holder) {
-      return [
-        'If ok po sa inyo, you may send the DP po here and send us proof of payment to reserve the date.',
-        '',
-        'BPI',
-        qAccount(holder),
-        qAccount(bpi),
-        '',
-        'GCASH',
-        qAccount(holder),
-        qAccount(gcash)
-      ].join('\n');
+      return qFill(quote.templates && quote.templates.dp, {
+        holder: qAccount(holder),
+        bpi: qAccount(bpi),
+        gcash: qAccount(gcash)
+      });
     }
 
     function qConfirmation(stay, name, checkIn, pax, balance) {
       var checkOut = qCheckOut(stay, checkIn);
-      return [
-        qGreeting(name) + ', we’ve received your booking and are excited to welcome you. Here are a few quick reminders for your stay:',
-        '',
-        'Check-in: ' + qDay(checkIn) + ' (' + qHour(checkIn) + ')',
-        'Check-out: ' + qDay(checkOut) + ' (' + qHour(checkOut) + ')',
-        'No. of Pax: ' + pax,
-        'Balance: Php ' + qPhp(balance),
-        '',
-        'Please note that the remaining balance should be settled on or before your arrival date',
-        '',
-        'Tidiness: We kindly ask that trash be placed in bins and dishes be washed. Please note that a fee of P350 will be charged if the place is left excessively messy (e.g., unwashed dishes or scattered trash).',
-        '',
-        'Pet Policy: To ensure the safety and comfort of all guests, pets are no longer permitted at the resort.',
-        '',
-        'Karaoke Hours: Karaoke is allowed until 12MN only. Please observe quiet hours after this time to maintain a peaceful environment for everyone.',
-        '',
-        'Prohibited Activities and Illegal Substances: Illegal drugs, prohibited substances, and other unlawful materials are not allowed in the resort, and no illegal activity or unlawful conduct is permitted within the resort. This applies to all members of the group.',
-        '',
-        'To finalize your check-in, we require a signed Release of Liability Agreement from your group and the ID of the person signing on behalf of the group upon entering the resort.'
-      ].join('\n');
+      return qFill(quote.templates && quote.templates.confirm, {
+        greeting: qGreeting(name),
+        name: qFirstName(name),
+        checkin: qDay(checkIn) + ' (' + qHour(checkIn) + ')',
+        checkout: qDay(checkOut) + ' (' + qHour(checkOut) + ')',
+        pax: pax,
+        balance: qPhp(balance)
+      });
     }
 
     /**
@@ -2076,6 +2061,8 @@
     // The form. undefined stays: not read yet; null: the read failed.
     var quote = {
       stays: undefined, bpi: '', gcash: '', holder: '',
+      // The message wording from the script, and its defaults; null until read.
+      templates: null, templateDefaults: null, editingTemplate: '',
       custom: false, customHours: 22, lastRated: QUOTE_STAYS[0],
       minutes: 9 * 60, timeReadable: true,
       quotes: [], pickedId: '', paid: false
@@ -2215,10 +2202,20 @@
       // Copy only while the message is fit to send.
       var complete = !quote.custom || (stay.name.length > 0 && quote.customHours > 0);
       var quoted = fee > 0 && quote.timeReadable && complete;
-      qEl('qCopyQuote').disabled = !quoted;
-      qEl('qCopyConfirm').disabled = !(quoted && dp > 0 && dp <= fee);
-      qEl('qCopyDp').disabled =
-        !(String(quote.bpi).trim() && String(quote.gcash).trim() && String(quote.holder).trim());
+      var worded = !!quote.templates;
+      qEl('qCopyQuote').disabled = !(quoted && worded);
+      qEl('qCopyConfirm').disabled = !(quoted && worded && dp > 0 && dp <= fee);
+      qEl('qCopyDp').disabled = !(worded &&
+        String(quote.bpi).trim() && String(quote.gcash).trim() && String(quote.holder).trim());
+      ['qTplQuote', 'qTplDp', 'qTplConfirm'].forEach(function (id) { qEl(id).disabled = !worded; });
+
+      // The wording arrives with the bookings, after the PIN.
+      if (!worded) {
+        var waiting = quote.stays === null ? 'Could not load the wording' : 'Loading the wording...';
+        qEl('qMsgQuote').placeholder = waiting;
+        qEl('qMsgConfirm').placeholder = waiting;
+        qEl('qMsgDp').textContent = waiting;
+      }
     }
 
     function clearQuote() {
@@ -2245,6 +2242,8 @@
         quote.bpi = data.bpi;
         quote.gcash = data.gcash;
         quote.holder = data.holder || '';
+        quote.templates = data.templates || null;
+        quote.templateDefaults = data.templateDefaults || null;
         quote.quotes = data.quotes || [];
         qListQuotes(quote.pickedId);
         qRebuild();
@@ -2252,6 +2251,57 @@
         quote.stays = null;
         qRebuild();
       });
+    }
+
+    // ------------------------------------------------------------- Template
+
+    /** Opens the wording of one message, with a button per field it can use. */
+    function openTemplate(kind) {
+      if (!quote.templates) return;
+      quote.editingTemplate = kind;
+
+      qEl('tplTitle').textContent = Q_TEMPLATE_TITLES[kind] + ' template';
+      qEl('tplText').value = quote.templates[kind] || '';
+
+      var host = qEl('tplFields');
+      host.innerHTML = '';
+      Q_TEMPLATE_FIELDS[kind].forEach(function (field) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = '{' + field + '}';
+        button.onclick = function () { insertField('{' + field + '}'); };
+        host.appendChild(button);
+      });
+
+      qEl('tplScrim').classList.add('on');
+    }
+
+    /** Drops a {field} in at the cursor, as if typed there. */
+    function insertField(token) {
+      var box = qEl('tplText');
+      var start = box.selectionStart == null ? box.value.length : box.selectionStart;
+      var end = box.selectionEnd == null ? start : box.selectionEnd;
+      box.value = box.value.slice(0, start) + token + box.value.slice(end);
+      box.focus();
+      box.setSelectionRange(start + token.length, start + token.length);
+    }
+
+    function closeTemplate() {
+      qEl('tplScrim').classList.remove('on');
+      quote.editingTemplate = '';
+    }
+
+    function submitTemplate(event) {
+      event.preventDefault();
+      var kind = quote.editingTemplate;
+      if (!kind) return;
+
+      call('saveTemplate', [kind, qEl('tplText').value]).then(function (templates) {
+        quote.templates = templates;
+        closeTemplate();
+        qRebuild();
+        say(Q_TEMPLATE_TITLES[kind] + ' template saved');
+      }).catch(failed);
     }
 
     // ------------------------------------------------- saved quotes and Paid
@@ -2489,6 +2539,19 @@
       qEl('qMsgConfirm').addEventListener('input', qFitMessages);
       qEl('qCopyDp').onclick = function () { copyText(qEl('qMsgDp').textContent, 'DP'); };
       qEl('qCopyConfirm').onclick = function () { copyText(qEl('qMsgConfirm').value, 'Confirm'); };
+
+      qEl('qTplQuote').onclick = function () { openTemplate('quote'); };
+      qEl('qTplDp').onclick = function () { openTemplate('dp'); };
+      qEl('qTplConfirm').onclick = function () { openTemplate('confirm'); };
+      qEl('tplForm').onsubmit = submitTemplate;
+      qEl('tplCancel').onclick = closeTemplate;
+      qEl('tplDefault').onclick = function () {
+        var kind = quote.editingTemplate;
+        if (kind && quote.templateDefaults) {
+          qEl('tplText').value = quote.templateDefaults[kind];
+          say('Default wording. Save to keep.');
+        }
+      };
 
       var mode = qEl('qMode');
       ['', 'GCash', 'BPI', 'Cash'].forEach(function (name) {
@@ -2831,6 +2894,9 @@
     document.getElementById('replyForm').onsubmit = submitReplyForm;
     document.getElementById('replyScrim').onclick = function (event) {
       if (event.target.id === 'replyScrim') closeReplyForm();
+    };
+    document.getElementById('tplScrim').onclick = function (event) {
+      if (event.target.id === 'tplScrim') closeTemplate();
     };
     document.getElementById('bookCancel').onclick = closeBookForm;
     document.getElementById('bookForm').onsubmit = submitBookForm;
